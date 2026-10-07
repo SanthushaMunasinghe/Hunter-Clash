@@ -3,15 +3,103 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#3f8f3a">
+  <meta name="theme-color" content="#2f6b2f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="description" content="Hunter Clash: a turn-based hunt-and-push strategy game.">
   <title>Hunter Clash</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div id="stage">
     <canvas id="game"></canvas>
+
+    <header id="hud">
+      <div class="hud-top">
+        <div class="brand"><i class="crest blue"></i>HUNTER CLASH</div>
+        <div class="hud-btns">
+          <button class="icon-btn" id="btn-sound" aria-label="Toggle sound"></button>
+          <button class="icon-btn" id="btn-help" aria-label="How to play">?</button>
+          <button class="icon-btn" id="btn-restart" aria-label="Restart">
+            <svg viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2.3-5.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="hud-bars">
+        <div class="side blue">
+          <i class="crest blue"></i>
+          <div class="info">
+            <div class="line"><span class="name">YOUR CASTLE</span><b id="hp-blue">200</b></div>
+            <div class="bar"><i id="bar-blue"></i></div>
+          </div>
+        </div>
+        <div class="turn" id="turn"><b id="turn-num">TURN 1</b><span id="turn-who">GET READY</span></div>
+        <div class="side red">
+          <div class="info">
+            <div class="line"><span class="name" id="enemy-name">NOOB AI</span><b id="hp-red">200</b></div>
+            <div class="bar"><i id="bar-red"></i></div>
+          </div>
+          <i class="crest red"></i>
+          <div class="enemy-meat"><img class="meat-ic" alt=""><b id="emeat-num">0</b></div>
+        </div>
+      </div>
+    </header>
+
+    <div id="banner"></div>
+    <div id="toast"></div>
+
+    <footer id="panel">
+      <div class="panel-top">
+        <div class="meat" id="meat"><img class="meat-ic" alt=""><b id="meat-num">0</b></div>
+        <div class="hint" id="hint"></div>
+        <button class="btn ghost" id="btn-undo" disabled>UNDO</button>
+        <button class="btn primary" id="btn-end" disabled>END TURN</button>
+      </div>
+      <div class="cards" id="cards"></div>
+    </footer>
+
+    <img id="ghost" alt="" draggable="false">
+
+    <div class="overlay" id="menu">
+      <div class="sheet">
+        <h1 class="logo"><span>HUNTER</span><span>CLASH</span></h1>
+        <p class="versus">You <i class="dot blue"></i> vs <i class="dot red"></i> <b id="menu-opponent">NOOB AI</b></p>
+        <button class="btn primary big" id="btn-play">PLAY</button>
+        <button class="btn ghost big" id="btn-resume">RESUME</button>
+        <button class="btn ghost" id="btn-menu-help">HOW TO PLAY</button>
+        <button class="btn link" id="btn-noob">Restart from Noob</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="result">
+      <div class="sheet">
+        <h1 class="logo small"><span id="result-title">VICTORY!</span></h1>
+        <p id="result-sub"></p>
+        <button class="btn primary big" id="btn-again">PLAY AGAIN</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="help">
+      <div class="sheet help">
+        <h2>HOW TO PLAY</h2>
+        <ol>
+          <li><b>Hunt.</b> Drag to aim, release to fire one arrow. It bounces 5 times and takes meat from every animal it hits. A clear shot can hit the red castle.</li>
+          <li><b>Units move.</b> After your shot, your troops and hunters each attack or step forward.</li>
+          <li><b>Attack.</b> Spend meat by dragging cards onto the board, then end your turn.</li>
+        </ol>
+        <ul>
+          <li><b>Warriors / Archers</b> go on the left or right road, anywhere up to your forward-most checkpoint. Archers shoot 3 steps but are fragile, so send them behind warriors.</li>
+          <li><b>Hunter</b> goes in your part of the field. It shoots the closest animal ahead, moves up after a kill, and fights enemy hunters and the castle.</li>
+          <li><b>Wall</b> goes in your part of the field and blocks enemy arrows and hunters.</li>
+          <li><b>Guard Tower</b> goes on a checkpoint you hold. Your troops pass; enemies must break it.</li>
+        </ul>
+        <p>Destroy the red castle to win. From turn 12, castles take double damage.</p>
+        <button class="btn primary" id="btn-help-close">GOT IT</button>
+      </div>
+    </div>
   </div>
   <script type="module" src="js/main.js"></script>
 </body>

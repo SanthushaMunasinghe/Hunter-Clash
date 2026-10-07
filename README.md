@@ -4,14 +4,16 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 
 Each turn has two states:
 
-1. **Hunt** – drag to aim and release one bouncing arrow. It bounces 5 times, taking a bite of meat out of every animal it hits. With a clear line it can hit the enemy castle too.
-2. **Attack** – spend meat on cards and drag them onto the board:
-   - **Warriors / Archers** – drop on the left or right lane, anywhere up to your forward-most checkpoint.
-   - **Hunter** – drop in your part of the centre field. Shoots the closest animal ahead and advances as it kills.
+1. **Hunt** – drag to aim (pull back like a slingshot, or push toward the target) and release one bouncing arrow. It bounces 5 times, taking a bite of meat out of every animal it hits. With a clear line it can hit the enemy castle too. When the arrow lands, your troops and hunters each attack or take a step forward.
+2. **Attack** – spend meat on cards. You hold 4 at a time from a cycling deck; drag one onto the board:
+   - **Warriors / Archers** – drop on the left or right lane, anywhere up to your forward-most checkpoint. They step forward as they land and capture checkpoints they reach.
+   - **Hunter** – drop in your part of the centre field. Shoots the closest animal ahead, advances as it kills, and fights enemy hunters, walls and the castle.
    - **Wall** – drop in your part of the centre field to block enemy arrows and hunters.
-   - **Guard Tower** – drop on a checkpoint you have captured.
+   - **Guard Tower** – drop on a checkpoint you have captured. Your troops pass through; the enemy has to break it.
 
-Destroy the enemy castle to win.
+Destroy the enemy castle to win. From turn 12 castles take double damage, so matches don't stall.
+
+Beating an opponent unlocks the next one: Noob, Rookie, Hunter, Warlord. All numbers (unit stats, prices, AI levels) live in `js/config.js`.
 
 ## Run locally
 
