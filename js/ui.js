@@ -50,7 +50,6 @@ export class UI {
     });
 
     tap($('btn-end'), () => game.playerEndTurn());
-    tap($('btn-undo'), () => game.playerUndo());
     tap($('btn-help'), () => this.show('help'));
     tap($('btn-help-close'), () => this.hide('help'));
     tap($('btn-menu-help'), () => this.show('help'));
@@ -198,7 +197,6 @@ export class UI {
 
     const cardsOn = mine && m.phase === 'cards';
     this.put('end', cardsOn, v => { $('btn-end').disabled = !v; });
-    this.put('undo', cardsOn && m.undo.length > 0, v => { $('btn-undo').disabled = !v; });
 
     m.teams[BLUE].hand.forEach((id, i) => {
       const el = this.cardEls[i];

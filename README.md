@@ -9,7 +9,7 @@ Each turn has two states:
    - **Warriors** – hit hard at close range and walk past friendly archers to meet the enemy head on.
    - **Archers** – stop as soon as an enemy is in range and shoot from there. Fragile.
    - **Guard Tower** – goes on a checkpoint you hold. Barely scratches anyone, but the enemy has to break it to pass.
-   - **Hunter Tower** – goes in your part of the centre field. Never moves; shoots animals that wander close and banks the meat.
+   - **Hunter Tower** – goes in your part of the centre field and never moves. Shoots an enemy hunter tower or the enemy castle if one is in range (for little damage); otherwise hunts animals in range and banks the meat.
 
 ## Lanes
 

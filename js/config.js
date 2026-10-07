@@ -36,8 +36,9 @@ export const UNITS = {
   tower: { hp: 30, atk: 4, range: 2 },
 };
 
-// Hunter towers stay put and shoot whatever wanders close. Good hunters, poor fighters.
-export const HTOWER = { hp: 40, r: 16, range: 95, atkAnimal: 25, atkUnit: 10, atkCastle: 2 };
+// Hunter towers stay put. They shoot an enemy hunter tower or the enemy castle if one is
+// in range, and hunt otherwise. Good hunters, poor fighters.
+export const HTOWER = { hp: 40, r: 16, range: 143, atkAnimal: 25, atkUnit: 10, atkCastle: 2 };
 
 export const ANIMALS = {
   sheep: { hp: 10, r: 14, speed: 11, weight: 5 },

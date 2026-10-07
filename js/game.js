@@ -23,17 +23,12 @@ export function createMatch(levelIdx, H) {
     tick: 0,      // turns started so far, two per round
     htowers: [],  // hunter towers in the centre field
     lanes: [0, 1].map(() => ({ squads: [], towers: [] })),
-    arrow: null, aim: null, nextId: 1, timers: [], undo: [], wait: {},
+    arrow: null, aim: null, nextId: 1, timers: [], wait: {},
     tutorial: levelIdx === 0, // show the drag demo until the first shot of a Noob match
   };
   initAnimals(m);
   return m;
 }
-
-// The parts of a match that playing a card can change. Undo restores exactly these.
-const snapshot = m => JSON.parse(JSON.stringify({
-  teams: m.teams, htowers: m.htowers, lanes: m.lanes, nextId: m.nextId,
-}));
 
 export class Game {
   constructor(fx, sfx) {
@@ -129,7 +124,6 @@ export class Game {
 
     // Attack: spend meat on cards.
     m.phase = 'cards';
-    m.undo = [];
     if (mine) {
       if (canPlayAny(m, BLUE)) {
         await new Promise(res => { m.wait.end = res; });
@@ -141,7 +135,6 @@ export class Game {
     } else {
       await this.aiCards(m);
     }
-    m.undo = [];
     m.phase = 'wait';
     await this.sleep(m, 0.25);
   }
@@ -185,17 +178,7 @@ export class Game {
   playerPlay(idx, target) {
     const m = this.match;
     if (!m || m.phase !== 'cards' || m.turnTeam !== BLUE) return false;
-    const snap = snapshot(m);
-    if (!this.play(m, BLUE, idx, target)) return false;
-    m.undo.push(snap);
-    return true;
-  }
-
-  playerUndo() {
-    const m = this.match;
-    if (!m || m.phase !== 'cards' || m.turnTeam !== BLUE || !m.undo.length) return;
-    Object.assign(m, m.undo.pop());
-    this.sfx.play('click');
+    return this.play(m, BLUE, idx, target);
   }
 
   playerEndTurn() {
@@ -465,7 +448,8 @@ export class Game {
       await this.sleep(m, 0.14);
     }
 
-    // Hunter towers: an enemy tower in reach first, then game, then the castle.
+    // Hunter towers fight first and hunt second: an enemy tower in range, then the
+    // enemy castle, and only with neither in reach do they go after game.
     for (const t of m.htowers.filter(e => e.team === team)) {
       if (t.hp <= 0 || m.over) continue;
       const closest = (list, pad) => {
@@ -477,16 +461,17 @@ export class Game {
         return best;
       };
       const foe = closest(m.htowers.filter(e => e.team === enemy), () => 0);
-      const prey = foe ? null : closest(m.animals, a => a.r);
+      const siege = !foe && gap(point(t), castleShape(goal)) <= HTOWER.range;
+      const prey = foe || siege ? null : closest(m.animals, a => a.r);
       if (foe) {
         this.hunterShot(t, foe.x, foe.y - 8);
         this.hurtHtower(m, foe, HTOWER.atkUnit);
+      } else if (siege) {
+        this.hunterShot(t, goal.x, goal.drawY - 30);
+        this.hurtCastle(m, enemy, HTOWER.atkCastle);
       } else if (prey) {
         this.hunterShot(t, prey.x, prey.y);
         this.hurtAnimal(m, prey, HTOWER.atkAnimal, team);
-      } else if (gap(point(t), castleShape(goal)) <= HTOWER.range) {
-        this.hunterShot(t, goal.x, goal.drawY - 30);
-        this.hurtCastle(m, enemy, HTOWER.atkCastle);
       } else {
         continue;
       }
@@ -554,7 +539,6 @@ export class Game {
     };
     remap(m.animals);
     remap(m.htowers);
-    for (const snap of m.undo) remap(snap.htowers);
     if (m.arrow) {
       m.arrow.y = mapY(m.arrow.y);
       m.arrow.trail = [];
