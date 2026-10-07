@@ -12,32 +12,34 @@ export const RED = 1;
 export const FIELD = { halfW: 186, exp: 3.4, topPad: 100, bottomPad: 88 };
 export const ROAD = { width: 58, offset: 32 };
 
-// Each lane is a row of slots from the blue castle (0) to the red castle (LANE_LEN).
-export const LANE_LEN = 10;
-export const CHECKPOINTS = [1, 3, 5, 7, 9];
-// One "step" for a squad is up to this many slots, i.e. checkpoint to checkpoint.
-export const MARCH = 2;
+// Each lane is a row of slots. Slot 0 is blue's home slot and slot LANE_LEN is red's:
+// only the owner may stand there, so a team can always deploy at its own gate.
+// Checkpoints sit every 5th slot, leaving 4 open slots between neighbours.
+export const LANE_LEN = 24;
+export const CHECKPOINTS = [2, 7, 12, 17, 22];
+export const HOME_INSET = 76; // px along the road from a castle to its home slot
 
-// guard*: the castle's own archers. siege: bonus multiplier for lane troops hitting a castle.
+// guard*: the castle's own archers, which finish off whatever reaches the gate.
 export const CASTLE = {
-  hp: 200, halfLen: 26, r: 26, scale: 0.85,
-  guardDmg: 15, guardSlots: 2, guardRange: 200, siege: 1.5,
+  hp: 100, halfLen: 26, r: 26, scale: 0.85,
+  guardDmg: 20, guardSlots: 4,
+  guardCenterDmg: 10, guardCenterRange: 150,
 };
 
-export const ARROW = { speed: 760, radius: 6, step: 3, bounces: 5, damage: 10 };
+export const ARROW = { speed: 800, radius: 6, step: 3, bounces: 5, damage: 10, castleDamage: 5 };
 
+// speed: slots covered in one step. siege: damage per hit on a castle.
+// Warriors plus one archer volley kill a fresh warrior squad in a single turn.
 export const UNITS = {
-  melee: { hp: 54, atk: 18, range: 1 },
-  archer: { hp: 24, atk: 12, range: 3 },
-  tower: { hp: 100, atk: 14, range: 2 },
+  melee: { hp: 36, atk: 24, siege: 25, range: 1, speed: 5 },
+  archer: { hp: 16, atk: 12, siege: 10, range: 4, speed: 5 },
+  tower: { hp: 30, atk: 4, range: 2 },
 };
 
-export const HUNTER = {
-  hp: 50, r: 16, range: 200, step: 64,
-  atkAnimal: 30, atkUnit: 20, atkCastle: 12,
-};
-
-export const WALL = { hp: 40, w: 76, r: 9 };
+// Hunter towers stay put and shoot whatever wanders close.
+export const HTOWER = { hp: 40, r: 16, range: 95, atkAnimal: 10, atkUnit: 10, atkCastle: 2 };
+// Hunters only walk forward, pushing the line you may build up to.
+export const HUNTER = { hp: 20, r: 11, step: 64 };
 
 export const ANIMALS = {
   sheep: { hp: 10, r: 14, speed: 11, weight: 5 },
@@ -46,31 +48,40 @@ export const ANIMALS = {
   bear: { hp: 80, r: 23, speed: 6, weight: 2 },
   dino: { hp: 160, r: 27, speed: 4, weight: 1 },
 };
-export const MAX_ANIMALS = 15;
+export const MIN_ANIMALS = 6;
+export const MAX_ANIMALS = 14;
 
 export const CARDS = {
-  melee: { name: 'Warriors', cost: 30, zone: 'lane' },
-  archer: { name: 'Archers', cost: 30, zone: 'lane' },
-  hunter: { name: 'Hunter', cost: 50, zone: 'center' },
-  wall: { name: 'Wall', cost: 20, zone: 'center' },
-  tower: { name: 'Guard Tower', cost: 80, zone: 'checkpoint' },
+  melee: { name: 'Warriors', cost: 40, zone: 'lane' },
+  archer: { name: 'Archers', cost: 40, zone: 'lane' },
+  htower: { name: 'Hunter Tower', cost: 50, zone: 'center' },
+  hunter: { name: 'Hunter', cost: 20, zone: 'center' },
+  tower: { name: 'Guard Tower', cost: 30, zone: 'checkpoint' },
 };
-export const DECK = ['melee', 'archer', 'hunter', 'wall', 'tower', 'melee', 'archer', 'hunter'];
+// Hand order on screen. Each turn shows 4 of the 5; the weight is how often a card sits out.
+export const CARD_ORDER = ['melee', 'archer', 'htower', 'hunter', 'tower'];
+export const CARD_REST = { melee: 1, archer: 2, htower: 3, hunter: 3, tower: 3 };
 export const HAND_SIZE = 4;
 export const START_MEAT = 20;
 
-// Centre deploy zone: starts `depth` of the field deep from your base and follows
-// your forward-most hunter, but never closer than `limit` to the enemy end.
-export const CENTER_ZONE = { depth: 0.3, limit: 0.22 };
+// Centre build zone: starts `depth` of the field deep from your base and follows your
+// forward-most hunter or hunter tower, but never closer than `limit` to the enemy end.
+export const CENTER_ZONE = { depth: 0.3, limit: 0.15 };
 
-// Long stalemates are broken by making castles fragile late in the match.
-export const SUDDEN_DEATH = { turn: 12, mult: 2 };
+// A match never runs long: once this many turns are up, the healthier castle wins.
+// Level castles go to whoever holds more checkpoints, then more meat; if even that is
+// level, play goes on a round at a time.
+export const TURN_LIMIT = 25;
 
+// Opponents differ only in how well they play; every stat and price is identical.
 // aimSamples: angles tried per shot. aimError: random wobble in radians.
-// smart: chance each card decision is the best one rather than a random one.
+// smart: chance each card decision is a considered one rather than a random one.
+// lookahead: rounds of lane fighting it plays out in its head before placing troops.
+// maxCards / skip: how many cards it bothers to play, and how often it forgets to.
 export const LEVELS = [
-  { name: 'NOOB AI', aimSamples: 6, aimError: 0.2, smart: 0.35, maxCards: 1, bonusMeat: 0 },
-  { name: 'ROOKIE AI', aimSamples: 16, aimError: 0.09, smart: 0.7, maxCards: 2, bonusMeat: 0 },
-  { name: 'HUNTER AI', aimSamples: 36, aimError: 0.03, smart: 0.9, maxCards: 3, bonusMeat: 5 },
-  { name: 'WARLORD AI', aimSamples: 64, aimError: 0, smart: 1, maxCards: 4, bonusMeat: 10 },
+  { name: 'NOOB', blurb: 'Still learning which end of the arrow is sharp.', aimSamples: 1, aimError: 0.3, smart: 0, lookahead: 0, maxCards: 1, skip: 0.65 },
+  { name: 'RECRUIT', blurb: 'Knows the rules, makes plenty of mistakes.', aimSamples: 3, aimError: 0.14, smart: 0.3, lookahead: 0, maxCards: 1, skip: 0.2 },
+  { name: 'VETERAN', blurb: 'A fair fight. Think before you spend.', aimSamples: 10, aimError: 0.07, smart: 0.6, lookahead: 0, maxCards: 2, skip: 0 },
+  { name: 'ACE', blurb: 'Sharp aim and well-timed pushes.', aimSamples: 30, aimError: 0.02, smart: 0.9, lookahead: 2, maxCards: 3, skip: 0 },
+  { name: 'LEGEND', blurb: 'Rarely misses. Punishes every gap.', aimSamples: 64, aimError: 0, smart: 1, lookahead: 4, maxCards: 4, skip: 0 },
 ];

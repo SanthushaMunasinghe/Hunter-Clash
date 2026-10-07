@@ -1,5 +1,5 @@
-import { W, MIN_H, MAX_H, LEVELS } from './config.js';
-import { clamp, store } from './utils.js';
+import { W, MIN_H, MAX_H } from './config.js';
+import { clamp } from './utils.js';
 import { Game } from './game.js';
 import { Renderer } from './render.js';
 import { UI } from './ui.js';
@@ -16,12 +16,12 @@ const sfx = new Sfx();
 const game = new Game(fx, sfx);
 const renderer = new Renderer(canvas, fx);
 
+// level: opponent picked on the menu. Not saved, so every fresh load starts at Noob.
 const app = {
   H: MIN_H,
-  level: clamp(parseInt(store.get('hc_level', '0'), 10) || 0, 0, LEVELS.length - 1),
+  level: 0,
   startMatch(level) {
     app.level = level;
-    store.set('hc_level', String(level));
     game.start(level, app.H);
   },
 };
@@ -30,9 +30,12 @@ const ui = new UI(game, sfx, app);
 const input = new Input(stage, canvas, game, ui, sfx);
 
 // Fit the fixed-width virtual canvas to the screen. Taller phones get a taller board.
+let fitW = 0, fitH = 0;
 function fit() {
   const vw = window.innerWidth, vh = window.innerHeight;
   if (!vw || !vh) return;
+  fitW = vw;
+  fitH = vh;
   app.H = clamp(Math.round((W * vh) / vw), MIN_H, MAX_H);
   const scale = Math.min(vw / W, vh / app.H);
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -68,6 +71,8 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  // Some mobile browsers change the viewport without firing a resize event.
+  if (window.innerWidth !== fitW || window.innerHeight !== fitH) fit();
   game.update(dt);
   ui.sync(game.match);
   renderer.draw(game, input, now / 1000);
@@ -76,4 +81,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Handle for poking at the game from the browser console.
-window.__hc = { game, app, ui, input };
+window.__hc = { game, app, ui, input, renderer };

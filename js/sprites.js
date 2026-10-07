@@ -1,4 +1,4 @@
-import { BLUE, WALL, CASTLE } from './config.js';
+import { BLUE, CASTLE } from './config.js';
 import { TAU, easeOutBack } from './utils.js';
 
 // All art is drawn procedurally so the game ships with no image assets.
@@ -440,7 +440,7 @@ export function drawCastle(ctx, team, x, y, hp, flash) {
   label(ctx, String(hp), x, y - 77 * CASTLE.scale, 20);
 }
 
-export function drawHunter(ctx, x, y, team, hpFrac, flash, born = 1, showHp = true) {
+export function drawHtower(ctx, x, y, team, hpFrac, flash, born = 1, showHp = true) {
   const c = TEAM_COL[team], sc = born < 1 ? Math.max(0.01, easeOutBack(born)) : 1;
   ctx.save();
   ctx.translate(x, y);
@@ -515,23 +515,6 @@ export function drawTower(ctx, x, y, team, hpFrac, flash, born = 1, t = 0, showH
   if (showHp && born >= 1) hpBar(ctx, x, y + 12, 28, hpFrac, team);
 }
 
-export function drawWall(ctx, x, y, team, hpFrac, flash, born = 1) {
-  const c = TEAM_COL[team], w = WALL.w, sc = born < 1 ? Math.max(0.01, easeOutBack(born)) : 1;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(sc, sc);
-  shadow(ctx, 0, 10, w / 2 + 2, 5);
-  block(ctx, -w / 2, -5, w, 15, 3, STONE_SHADE, '#b9af95', STONE_LINE);
-  bricks(ctx, -w / 2, -5, w, 15, 2);
-  block(ctx, -w / 2, -13, w, 11, 3, STONE, null, STONE_LINE);
-  for (let i = 0; i < 5; i++) {
-    block(ctx, -w / 2 + 4 + i * 14.6, -18, 9.5, 8, 2, c.main, null, c.dark);
-  }
-  hitFlash(ctx, 0, -3, w / 2, 14, flash);
-  ctx.restore();
-  if (hpFrac < 1 && born >= 1) hpBar(ctx, x, y + 16, 30, hpFrac, team);
-}
-
 function hex(ctx, x, y, r) {
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
@@ -559,6 +542,34 @@ export function drawCheckpoint(ctx, x, y, owner, pop) {
   ctx.fillStyle = owner < 0 ? '#a9763b' : TEAM_COL[owner].main;
   ctx.fill();
   ctx.strokeStyle = owner < 0 ? '#8a5a2b' : TEAM_COL[owner].dark;
+  ctx.stroke();
+  ctx.restore();
+}
+
+// The slot beside each castle where only its own team may deploy. (dx, dy) points up the lane.
+export function drawHomePad(ctx, x, y, team, dx, dy) {
+  const c = TEAM_COL[team];
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = c.dark;
+  ellipse(ctx, 0, 3, 21, 15);
+  ctx.fill();
+  ctx.fillStyle = c.main;
+  ellipse(ctx, 0, 0, 21, 15);
+  ctx.fill();
+  ctx.strokeStyle = c.light;
+  ctx.lineWidth = 2;
+  ellipse(ctx, 0, 0, 16, 11);
+  ctx.stroke();
+  ctx.rotate(Math.atan2(dy, dx));
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-4, -6);
+  ctx.lineTo(3, 0);
+  ctx.lineTo(-4, 6);
   ctx.stroke();
   ctx.restore();
 }
@@ -624,28 +635,73 @@ function soldier(ctx, x, y, team, kind, bob) {
   ctx.restore();
 }
 
-const SQUAD_SCALE = 1.4;
-const FORMATION = [
-  [[0, 0]],
-  [[-8, 0], [8, 0]],
-  [[0, -7], [-9, 6], [9, 6]],
-];
+// A rank of up to three soldiers standing across the road; (nx, ny) is the unit vector
+// across the lane. Pass hpFrac = null to leave the health bar off.
+export function drawSquad(ctx, x, y, nx, ny, team, kind, count, hpFrac, flash, t, walking, scale = 1) {
+  const n = Math.max(1, Math.min(3, count));
+  shadow(ctx, x, y + 9 * scale, (8 + n * 5) * scale, 5 * scale, 0.2);
+  const spots = [];
+  for (let i = 0; i < n; i++) {
+    const o = (i - (n - 1) / 2) * 12.5 * scale;
+    spots.push({ x: x + nx * o, y: y + ny * o, i });
+  }
+  spots.sort((p, q) => p.y - q.y);
+  for (const p of spots) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(scale, scale);
+    soldier(ctx, 0, 0, team, kind, walking ? Math.abs(Math.sin(t * 12 + p.i * 1.7)) * 2.2 : 0);
+    ctx.restore();
+  }
+  hitFlash(ctx, x, y - 2, 20 * scale, 14 * scale, flash);
+  if (hpFrac !== null) hpBar(ctx, x, y + 12 * scale, 20, hpFrac, team);
+}
 
-// count soldiers standing in formation; pass hp = null to leave the number off.
-export function drawSquad(ctx, x, y, team, kind, count, hp, flash, t, walking) {
-  const k = SQUAD_SCALE;
+// A lone hunter carrying the banner that marks how far you may build.
+export function drawHunter(ctx, x, y, team, hpFrac, flash, born = 1, t = 0, showHp = true) {
+  const sc = (born < 1 ? Math.max(0.01, easeOutBack(born)) : 1) * 1.7;
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(k, k);
-  shadow(ctx, 0, 12, 18, 6, 0.2);
-  const spots = FORMATION[Math.max(1, Math.min(3, count)) - 1];
-  spots.forEach(([ox, oy], i) => {
-    const bob = walking ? Math.abs(Math.sin(t * 12 + i * 1.7)) * 2.2 : 0;
-    soldier(ctx, ox, oy, team, kind, bob);
-  });
-  hitFlash(ctx, 0, 0, 18, 16, flash);
+  ctx.scale(sc, sc);
+  shadow(ctx, 0, 8, 9, 3.5, 0.22);
+  flag(ctx, -5, 3, 22, team, t, 0.75);
+  soldier(ctx, 0, 0, team, 'archer', 0);
+  hitFlash(ctx, 0, -2, 9, 12, flash);
   ctx.restore();
-  if (hp !== null) label(ctx, String(hp), x, y - 24 * k, 14, TEAM_COL[team].light);
+  if (showHp && born >= 1) hpBar(ctx, x, y + 18, 20, hpFrac, team);
+}
+
+// Pointing hand for the aiming tutorial. (x, y) is the fingertip.
+export function drawHand(ctx, x, y, pressed, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  if (pressed) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 3;
+    circle(ctx, 0, 0, 14);
+    ctx.stroke();
+  }
+  ctx.rotate(-0.3);
+  const k = pressed ? 0.92 : 1;
+  ctx.scale(k, k);
+  ctx.beginPath();
+  ctx.roundRect(-6, -2, 12, 30, 6);  // index finger
+  ctx.roundRect(-9, 16, 27, 24, 9);  // palm
+  ctx.roundRect(-17, 18, 12, 17, 6); // thumb
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(31,36,51,0.3)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(7, 19); ctx.lineTo(7, 27);
+  ctx.moveTo(12.5, 20); ctx.lineTo(12.5, 27);
+  ctx.stroke();
+  ctx.restore();
 }
 
 export function drawArrow(ctx, x, y, angle, team, scale = 1) {
@@ -694,17 +750,15 @@ export function cardIcon(id) {
   const g = c.getContext('2d');
   g.scale(2, 2);
   if (id === 'melee' || id === 'archer') {
-    g.translate(50, 40);
-    g.scale(1.5, 1.5);
-    drawSquad(g, 0, 0, BLUE, id, 3, null, 0, 0, false);
-  } else if (id === 'hunter') {
+    drawSquad(g, 50, 44, 1, 0, BLUE, id, 3, null, 0, 0, false, 2.1);
+  } else if (id === 'htower') {
     g.translate(54, 50);
     g.scale(1.45, 1.45);
-    drawHunter(g, 0, 0, BLUE, 1, 0, 1, false);
-  } else if (id === 'wall') {
-    g.translate(50, 42);
-    g.scale(1.15, 1.15);
-    drawWall(g, 0, 0, BLUE, 1, 0);
+    drawHtower(g, 0, 0, BLUE, 1, 0, 1, false);
+  } else if (id === 'hunter') {
+    g.translate(52, 50);
+    g.scale(1.5, 1.5);
+    drawHunter(g, 0, 0, BLUE, 1, 0, 1, 0, false);
   } else {
     g.translate(50, 68);
     g.scale(1.05, 1.05);

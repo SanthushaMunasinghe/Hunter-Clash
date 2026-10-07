@@ -1,18 +1,18 @@
-import { ARROW, HUNTER, WALL, CASTLE } from './config.js';
+import { ARROW, HUNTER, HTOWER, CASTLE } from './config.js';
 import { clamp } from './utils.js';
 
 const EDGE = { kind: 'edge' };
 
-// Everything `team`'s arrow can hit, as capsules. A team's own hunters and walls
-// are left out so they never block their own shot.
+// Everything `team`'s arrow can hit, as capsules. A team's own hunters and hunter
+// towers are left out so they never block their own shot.
 export function collectObstacles(m, team) {
   const obs = [];
   for (const a of m.animals) obs.push({ kind: 'animal', ref: a, x: a.x, y: a.y, h: 0, r: a.r });
   for (const h of m.hunters) {
     if (h.team !== team) obs.push({ kind: 'hunter', ref: h, x: h.x, y: h.y, h: 0, r: HUNTER.r });
   }
-  for (const w of m.walls) {
-    if (w.team !== team) obs.push({ kind: 'wall', ref: w, x: w.x, y: w.y, h: WALL.w / 2 - WALL.r, r: WALL.r });
+  for (const t of m.htowers) {
+    if (t.team !== team) obs.push({ kind: 'htower', ref: t, x: t.x, y: t.y, h: 0, r: HTOWER.r });
   }
   for (const c of m.board.castles) {
     obs.push({
@@ -86,7 +86,7 @@ export function simulateShot(m, team, angle, maxContacts = Infinity, points = nu
     x: L.x, y: L.y, dx: Math.cos(angle), dy: Math.sin(angle),
     bouncesLeft: Math.min(ARROW.bounces, maxContacts - 1), done: false,
   };
-  const res = { meat: 0, castle: 0, hunter: 0, wall: 0 };
+  const res = { meat: 0, castle: 0, hunter: 0, htower: 0 };
   const onHit = o => {
     if (points) points.push({ x: ar.x, y: ar.y, kind: o.kind });
     if (o.kind === 'animal') {
@@ -94,13 +94,13 @@ export function simulateShot(m, team, angle, maxContacts = Infinity, points = nu
       o.hp -= d;
       res.meat += d;
       if (o.hp <= 0) o.dead = true;
-    } else if (o.kind === 'hunter' || o.kind === 'wall') {
+    } else if (o.kind === 'hunter' || o.kind === 'htower') {
       const d = Math.min(o.hp, ARROW.damage);
       o.hp -= d;
       res[o.kind] += d;
       if (o.hp <= 0) o.dead = true;
     } else if (o.kind === 'castle') {
-      res.castle += ARROW.damage;
+      res.castle += ARROW.castleDamage;
       return 'stop';
     }
   };

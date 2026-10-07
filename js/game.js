@@ -1,29 +1,29 @@
 import {
-  BLUE, RED, LANE_LEN, CHECKPOINTS, MARCH, CASTLE, ARROW, HUNTER, CARDS, LEVELS, SUDDEN_DEATH,
+  BLUE, RED, CHECKPOINTS, CASTLE, ARROW, HTOWER, HUNTER, CARDS, LEVELS, TURN_LIMIT,
 } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals } from './animals.js';
 import { collectObstacles, stepArrow, previewPath } from './arrow.js';
-import { dealTeam, playCard, canPlayAny, centerFits, wallShape, castleShape } from './cards.js';
+import { newTeam, dealHand, playCard, canPlayAny } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
+import { advance, laneStep, cpOwner, centerFits, centerLimit, castleShape } from './rules.js';
 import { dist, clamp, lerp, rand, gap, easeOut } from './utils.js';
 
 const TEAM_TEXT = ['#bfe0ff', '#ffc4c4'];
 const TEAM_RING = ['#6db6ff', '#ff7b7b'];
+const WALK_SPEED = 12; // slots per second, for the walk animation only
 
 export function createMatch(levelIdx, H) {
-  const first = CHECKPOINTS[0], last = CHECKPOINTS[CHECKPOINTS.length - 1];
   const m = {
     board: makeBoard(H), levelIdx, turn: 1, turnTeam: BLUE, phase: 'menu', over: null, time: 0,
     castles: [BLUE, RED].map(team => ({ team, hp: CASTLE.hp, maxHp: CASTLE.hp, flash: 0 })),
-    teams: [dealTeam(), dealTeam()],
-    animals: [], hunters: [], walls: [],
-    // Each side starts holding the checkpoint nearest its own castle.
-    lanes: [0, 1].map(() => ({
-      squads: [], towers: [],
-      cps: CHECKPOINTS.map(slot => ({ slot, owner: slot === first ? BLUE : slot === last ? RED : -1, pop: 0 })),
-    })),
+    teams: [newTeam(), newTeam()],
+    animals: [],
+    hunters: [], // walkers that push the build line forward
+    htowers: [], // static hunter towers
+    lanes: [0, 1].map(() => ({ squads: [], towers: [] })),
     arrow: null, aim: null, nextId: 1, timers: [], undo: [], wait: {},
+    tutorial: levelIdx === 0, // show the drag demo until the first shot of a Noob match
   };
   initAnimals(m);
   return m;
@@ -31,7 +31,7 @@ export function createMatch(levelIdx, H) {
 
 // The parts of a match that playing a card can change. Undo restores exactly these.
 const snapshot = m => JSON.parse(JSON.stringify({
-  teams: m.teams, hunters: m.hunters, walls: m.walls, lanes: m.lanes, nextId: m.nextId,
+  teams: m.teams, hunters: m.hunters, htowers: m.htowers, lanes: m.lanes, nextId: m.nextId,
 }));
 
 export class Game {
@@ -74,11 +74,17 @@ export class Game {
       await this.turn(m, m.turnTeam);
       if (m.over) break;
       if (m.turnTeam === RED) {
+        // Round over. Past the turn limit, whoever is ahead takes the match.
+        const lead = m.turn >= TURN_LIMIT ? this.standing(m) : 0;
+        if (lead) {
+          this.finish(m, lead > 0 ? BLUE : RED, 'time');
+          break;
+        }
         m.turn++;
-        respawnAnimals(m);
-        if (m.turn === SUDDEN_DEATH.turn) {
-          this.emit('banner', 'SUDDEN DEATH');
-          this.emit('toast', `Castles now take x${SUDDEN_DEATH.mult} damage`);
+        const left = TURN_LIMIT - m.turn;
+        if (left === 4 || left === 0 || left < 0) {
+          this.emit('banner', left > 0 ? `${left + 1} TURNS LEFT` : left === 0 ? 'FINAL TURN' : 'TIEBREAK');
+          this.emit('toast', 'When time is up, the healthier castle wins');
           await this.sleep(m, 1.3);
         }
       }
@@ -89,6 +95,10 @@ export class Game {
   async turn(m, team) {
     const mine = team === BLUE;
 
+    // Start of turn: new animals arrive and a fresh hand is dealt.
+    respawnAnimals(m);
+    dealHand(m.teams[team]);
+
     // Hunt: one bouncing arrow.
     m.phase = 'aim';
     m.aim = null;
@@ -98,16 +108,17 @@ export class Game {
     if (mine) {
       angle = await new Promise(res => { m.wait.fire = res; });
       m.wait.fire = null;
+      m.tutorial = false;
     } else {
-      await this.sleep(m, 0.7);
-      angle = chooseAim(m, LEVELS[m.levelIdx]);
+      await this.sleep(m, 0.5);
+      angle = chooseAim(m, RED, LEVELS[m.levelIdx]);
       await this.aiAim(m, angle);
     }
     m.aim = null;
     m.phase = 'fly';
     await this.fire(m, team, angle);
     if (m.over) return;
-    await this.sleep(m, 0.25);
+    await this.sleep(m, 0.2);
 
     // Units on the board attack or step forward.
     m.phase = 'act';
@@ -117,26 +128,25 @@ export class Game {
     // Attack: spend meat on cards.
     m.phase = 'cards';
     m.undo = [];
-    this.emit('cards', team);
     if (mine) {
       if (canPlayAny(m, BLUE)) {
         await new Promise(res => { m.wait.end = res; });
         m.wait.end = null;
       } else {
         this.emit('toast', 'Not enough meat for a card');
-        await this.sleep(m, 1.2);
+        await this.sleep(m, 1.1);
       }
     } else {
       await this.aiCards(m);
     }
     m.undo = [];
     m.phase = 'wait';
-    await this.sleep(m, 0.3);
+    await this.sleep(m, 0.25);
   }
 
   async aiAim(m, angle) {
     const from = angle + (Math.random() < 0.5 ? -1 : 1) * rand(0.3, 0.6);
-    const t0 = m.time, dur = 0.85;
+    const t0 = m.time, dur = 0.7;
     m.aim = { team: RED, angle: from, pull: 0 };
     while (m.time - t0 < dur) {
       const k = easeOut((m.time - t0) / dur);
@@ -145,20 +155,20 @@ export class Game {
       await this.sleep(m, 0);
     }
     m.aim.angle = angle;
-    await this.sleep(m, 0.25);
+    await this.sleep(m, 0.2);
   }
 
   async aiCards(m) {
     const lvl = LEVELS[m.levelIdx];
-    m.teams[RED].meat += lvl.bonusMeat;
-    await this.sleep(m, 0.5);
+    await this.sleep(m, 0.4);
+    if (Math.random() < lvl.skip) return;
     for (let i = 0; i < lvl.maxCards && !m.over; i++) {
-      const act = chooseCard(m, lvl);
+      const act = chooseCard(m, RED, lvl);
       if (!act) break;
       const name = CARDS[m.teams[RED].hand[act.idx]].name;
       if (!this.play(m, RED, act.idx, act.target)) break;
       this.emit('toast', `Enemy played ${name}`);
-      await this.sleep(m, 0.75);
+      await this.sleep(m, 0.55);
     }
   }
 
@@ -193,21 +203,20 @@ export class Game {
     m.wait.end();
   }
 
-  // Shared by the player and the AI. Lane squads take one free step as they land.
+  // Shared by the player and the AI. Troops and hunters take one free step as they land.
   play(m, team, idx, target) {
     const id = m.teams[team].hand[idx];
     const ent = playCard(m, team, idx, target);
     if (!ent) return false;
     this.sfx.play('place');
-    let p;
+    let p = ent;
     if (CARDS[id].zone === 'lane') {
-      this.captureAt(m, ent.lane, ent);
-      this.march(m, ent.lane, ent);
+      ent.slot = advance(m.lanes[ent.lane], ent);
       p = m.board.lanePoint(ent.lane, ent.slot);
     } else if (CARDS[id].zone === 'checkpoint') {
       p = m.board.lanePoint(ent.lane, ent.slot);
-    } else {
-      p = ent;
+    } else if (id === 'hunter') {
+      this.stepHunter(m, ent);
     }
     this.fx.ring(p.x, p.y, TEAM_RING[team], 8, 44, 0.4);
     return true;
@@ -257,13 +266,11 @@ export class Game {
         this.hurtAnimal(m, o.ref, ARROW.damage, ar.team);
         break;
       case 'hunter':
-        this.hurtHunter(m, o.ref, ARROW.damage);
-        break;
-      case 'wall':
-        this.hurtWall(m, o.ref, ARROW.damage);
+      case 'htower':
+        this.hurtCenter(m, o.ref, ARROW.damage);
         break;
       case 'castle':
-        this.hurtCastle(m, 1 - ar.team, ARROW.damage);
+        this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
         return 'stop';
       default:
         this.sfx.play('bounce');
@@ -295,7 +302,6 @@ export class Game {
   hurtCastle(m, team, dmg) {
     if (m.over) return;
     const c = m.castles[team], p = m.board.castles[team];
-    if (m.turn >= SUDDEN_DEATH.turn) dmg *= SUDDEN_DEATH.mult;
     c.hp = Math.max(0, c.hp - dmg);
     c.flash = 0.25;
     this.fx.shake = Math.max(this.fx.shake, 5);
@@ -303,19 +309,33 @@ export class Game {
     this.fx.puff(p.x + rand(-30, 30), p.drawY - 20, '#e9e2cf', 8, 80);
     this.sfx.play('castle');
     if (c.hp > 0) return;
-    m.over = { winner: 1 - team };
-    m.phase = 'over';
-    m.aim = null;
     this.fx.shake = 12;
     for (let i = 0; i < 5; i++) this.fx.puff(p.x + rand(-45, 45), p.drawY + rand(-60, 10), '#e9e2cf', 10, 130);
-    this.sleep(m, 1.4).then(() => this.emit('over', m.over.winner));
+    this.finish(m, 1 - team, 'castle');
+  }
+
+  // Who is ahead when time runs out: > 0 blue, < 0 red, 0 dead level.
+  // Castle health decides, then checkpoints held, then meat in the bank.
+  standing(m) {
+    const cps = team => m.lanes.reduce((n, lane) => n + CHECKPOINTS.filter(c => cpOwner(lane, c) === team).length, 0);
+    return m.castles[BLUE].hp - m.castles[RED].hp
+      || cps(BLUE) - cps(RED)
+      || m.teams[BLUE].meat - m.teams[RED].meat;
+  }
+
+  // how: 'castle' (destroyed) or 'time' (turn limit).
+  finish(m, winner, how) {
+    m.over = { winner, how };
+    m.phase = 'over';
+    m.aim = null;
+    this.sleep(m, how === 'castle' ? 1.4 : 0.6).then(() => this.emit('over', winner));
   }
 
   hurtSquad(m, li, s, dmg) {
     const p = m.board.lanePoint(li, s.slot);
     s.hp -= dmg;
     s.flash = 0.2;
-    this.fx.text(p.x, p.y - 30, '-' + dmg, TEAM_TEXT[s.team], false, 13);
+    this.fx.text(p.x, p.y - 22, '-' + dmg, TEAM_TEXT[s.team], false, 13);
     if (s.hp > 0) return;
     const list = m.lanes[li].squads;
     list.splice(list.indexOf(s), 1);
@@ -328,32 +348,24 @@ export class Game {
     tw.flash = 0.2;
     this.fx.text(p.x, p.y - 56, '-' + dmg, TEAM_TEXT[tw.team], false, 13);
     if (tw.hp > 0) return;
-    const lane = m.lanes[li];
-    lane.towers.splice(lane.towers.indexOf(tw), 1);
-    const cp = lane.cps.find(c => c.slot === tw.slot);
-    if (cp) cp.owner = -1;
+    const list = m.lanes[li].towers;
+    list.splice(list.indexOf(tw), 1);
     this.fx.puff(p.x, p.y - 20, '#e9e2cf', 14, 100);
     this.sfx.play('thud');
   }
 
-  hurtHunter(m, h, dmg) {
-    h.hp -= dmg;
-    h.flash = 0.2;
-    this.fx.text(h.x, h.y - 44, '-' + dmg, TEAM_TEXT[h.team], false, 13);
+  // A hunter or hunter tower in the centre field.
+  hurtCenter(m, e, dmg) {
+    e.hp -= dmg;
+    e.flash = 0.2;
+    this.fx.text(e.x, e.y - 40, '-' + dmg, TEAM_TEXT[e.team], false, 13);
     this.sfx.play('thud');
-    if (h.hp > 0) return;
-    m.hunters.splice(m.hunters.indexOf(h), 1);
-    this.fx.puff(h.x, h.y - 10, '#e9e2cf', 12, 90);
-  }
-
-  hurtWall(m, w, dmg) {
-    w.hp -= dmg;
-    w.flash = 0.2;
-    this.fx.text(w.x, w.y - 24, '-' + dmg, TEAM_TEXT[w.team], false, 13);
-    this.sfx.play('thud');
-    if (w.hp > 0) return;
-    m.walls.splice(m.walls.indexOf(w), 1);
-    this.fx.puff(w.x, w.y, '#e9e2cf', 12, 90);
+    if (e.hp > 0) return;
+    for (const list of [m.hunters, m.htowers]) {
+      const i = list.indexOf(e);
+      if (i >= 0) list.splice(i, 1);
+    }
+    this.fx.puff(e.x, e.y - 8, '#e9e2cf', 12, 90);
   }
 
   // ---------------------------------------------------------------- unit actions
@@ -363,59 +375,15 @@ export class Game {
     await this.sleep(m, 0.2);
   }
 
-  canEnter(lane, slot, team) {
-    if (slot < 1 || slot > LANE_LEN - 1) return false;
-    if (lane.squads.some(q => q.slot === slot)) return false;
-    return !lane.towers.some(t => t.slot === slot && t.team !== team);
-  }
-
-  // One step forward: up to MARCH slots, stopping early once an enemy comes into range.
-  march(m, li, s) {
-    const lane = m.lanes[li], dir = s.team === BLUE ? 1 : -1;
-    let moved = 0;
-    while (moved < MARCH && this.canEnter(lane, s.slot + dir, s.team)) {
-      s.slot += dir;
-      moved++;
-      this.captureAt(m, li, s);
-      if (this.laneTarget(lane, s.team, s.slot, s.range)) break;
-    }
-    return moved > 0;
-  }
-
-  captureAt(m, li, s) {
-    const cp = m.lanes[li].cps.find(c => c.slot === s.slot);
-    if (!cp || cp.owner === s.team) return;
-    cp.owner = s.team;
-    cp.pop = 0.5;
-    const p = m.board.lanePoint(li, cp.slot);
-    this.fx.ring(p.x, p.y, TEAM_RING[s.team], 12, 46, 0.5);
-    this.fx.text(p.x, p.y - 34, 'CAPTURED', TEAM_TEXT[s.team], false, 12);
-    this.sfx.play('capture');
-  }
-
-  // First enemy thing within `range` slots ahead of `slot`.
-  laneTarget(lane, team, slot, range) {
-    const dir = team === BLUE ? 1 : -1, goal = team === BLUE ? LANE_LEN : 0;
-    for (let k = 1; k <= range; k++) {
-      const s = slot + dir * k;
-      if (s < 0 || s > LANE_LEN) break;
-      const sq = lane.squads.find(o => o.slot === s && o.team !== team);
-      if (sq) return { type: 'squad', ref: sq };
-      const tw = lane.towers.find(o => o.slot === s && o.team !== team);
-      if (tw) return { type: 'tower', ref: tw };
-      if (s === goal) return { type: 'castle' };
-    }
-    return null;
-  }
-
-  squadAttack(m, li, s, tgt) {
-    const b = m.board, from = b.lanePoint(li, s.slot);
+  // Sword swing or arrow volley for an 'attack' action from a lane plan, plus its damage.
+  squadAttack(m, li, s, act) {
+    const b = m.board, lane = m.lanes[li], from = b.lanePoint(li, s.slot);
     let to;
-    if (tgt.type === 'castle') {
+    if (act.kind === 'castle') {
       const c = b.castles[1 - s.team];
       to = { x: c.x + (li === 0 ? -34 : 34), y: c.drawY - 8 };
     } else {
-      to = b.lanePoint(li, tgt.ref.slot);
+      to = b.lanePoint(li, act.slot);
     }
     if (s.kind === 'melee') {
       const d = dist(from.x, from.y, to.x, to.y) || 1;
@@ -428,132 +396,135 @@ export class Game {
       this.fx.shot(from.x, from.y - 8, to.x, to.y - 6, { arc: 18 });
       this.sfx.play('bow');
     }
-    if (tgt.type === 'castle') this.hurtCastle(m, 1 - s.team, Math.round(s.atk * CASTLE.siege));
-    else if (tgt.type === 'squad') this.hurtSquad(m, li, tgt.ref, s.atk);
-    else this.hurtTower(m, li, tgt.ref, s.atk);
+    if (act.kind === 'castle') {
+      this.hurtCastle(m, 1 - s.team, act.dmg);
+    } else if (act.kind === 'squad') {
+      const tgt = lane.squads.find(q => q.id === act.target);
+      if (tgt) this.hurtSquad(m, li, tgt, act.dmg);
+    } else {
+      const tgt = lane.towers.find(t => t.id === act.target);
+      if (tgt) this.hurtTower(m, li, tgt, act.dmg);
+    }
   }
 
+  // The rules work the whole lane step out on a copy; this plays it back on the real
+  // lane one action at a time so it can be watched.
   async laneAct(m, team, li) {
-    const lane = m.lanes[li], b = m.board, enemy = 1 - team;
-    const dir = team === BLUE ? 1 : -1, home = team === BLUE ? 0 : LANE_LEN;
-    const nearest = (slot, range) => lane.squads
-      .filter(s => s.team === enemy && Math.abs(s.slot - slot) <= range)
-      .sort((p, q) => Math.abs(p.slot - slot) - Math.abs(q.slot - slot))[0];
+    const lane = m.lanes[li], b = m.board;
+    const plan = laneStep(JSON.parse(JSON.stringify(lane)), team);
+    const squad = id => lane.squads.find(q => q.id === id);
 
-    // The castle's own guards shoot whoever is at the gates.
-    const raider = nearest(home, CASTLE.guardSlots);
-    if (raider) {
-      const c = b.castles[team], to = b.lanePoint(li, raider.slot);
-      this.fx.shot(c.x + (li === 0 ? -30 : 30), c.drawY - 40, to.x, to.y - 6, { arc: 22 });
-      this.sfx.play('bow');
-      this.hurtSquad(m, li, raider, CASTLE.guardDmg);
-      await this.sleep(m, 0.14);
-    }
-
-    for (const tw of lane.towers.filter(t => t.team === team)) {
-      const foe = nearest(tw.slot, tw.range);
-      if (!foe || m.over) continue;
-      const from = b.lanePoint(li, tw.slot), to = b.lanePoint(li, foe.slot);
-      this.fx.shot(from.x, from.y - 44, to.x, to.y - 6, { arc: 20 });
-      this.sfx.play('bow');
-      this.hurtSquad(m, li, foe, tw.atk);
-      await this.sleep(m, 0.14);
-    }
-
-    // Front squads go first so the ones behind can close up.
-    const squads = lane.squads.filter(s => s.team === team).sort((p, q) => dir * (q.slot - p.slot));
-    for (const s of squads) {
-      if (s.hp <= 0 || m.over) continue;
-      const tgt = this.laneTarget(lane, team, s.slot, s.range);
-      if (tgt) {
-        this.squadAttack(m, li, s, tgt);
-        await this.sleep(m, 0.16);
-      } else if (this.march(m, li, s)) {
-        await this.sleep(m, 0.05);
+    for (const act of plan) {
+      if (m.over) return;
+      if (act.type === 'guard' || act.type === 'tower') {
+        const tgt = squad(act.target);
+        if (!tgt) continue;
+        const to = b.lanePoint(li, tgt.slot);
+        let from;
+        if (act.type === 'guard') {
+          const c = b.castles[team];
+          from = { x: c.x + (li === 0 ? -30 : 30), y: c.drawY - 40 };
+        } else {
+          const tw = lane.towers.find(t => t.id === act.by);
+          if (!tw) continue;
+          const p = b.lanePoint(li, tw.slot);
+          from = { x: p.x, y: p.y - 44 };
+        }
+        this.fx.shot(from.x, from.y, to.x, to.y - 6, { arc: 20 });
+        this.sfx.play('bow');
+        this.hurtSquad(m, li, tgt, act.dmg);
+        await this.sleep(m, 0.12);
+        continue;
       }
+
+      const s = squad(act.by);
+      if (!s) continue;
+      const walked = Math.abs(act.to - s.slot);
+      s.slot = act.to;
+      if (act.type === 'move') {
+        await this.sleep(m, 0.04);
+        continue;
+      }
+      if (walked) await this.sleep(m, walked / WALK_SPEED + 0.05);
+      if (m.over) return;
+      this.squadAttack(m, li, s, act);
+      await this.sleep(m, 0.14);
     }
   }
 
   async centerAct(m, team) {
-    const b = m.board, enemy = 1 - team, dirY = team === BLUE ? -1 : 1;
-    const home = b.castles[team], goal = b.castles[enemy];
+    const b = m.board, enemy = 1 - team, home = b.castles[team], goal = b.castles[enemy];
+    const point = e => ({ x: e.x, y: e.y, h: 0, r: 0 });
 
-    let intruder = null, id = CASTLE.guardRange;
-    for (const h of m.hunters) {
-      const d = dist(h.x, h.y, home.x, home.y);
-      if (h.team === enemy && d < id) { id = d; intruder = h; }
+    // Castle guards pick off anything of the enemy's that gets close.
+    let intruder = null, reach = CASTLE.guardCenterRange;
+    for (const e of [...m.hunters, ...m.htowers]) {
+      const d = gap(point(e), castleShape(home));
+      if (e.team === enemy && d < reach) { reach = d; intruder = e; }
     }
     if (intruder) {
       this.fx.shot(home.x, home.drawY - 40, intruder.x, intruder.y - 10, { arc: 22 });
       this.sfx.play('bow');
-      this.hurtHunter(m, intruder, CASTLE.guardDmg);
-      await this.sleep(m, 0.16);
+      this.hurtCenter(m, intruder, CASTLE.guardCenterDmg);
+      await this.sleep(m, 0.14);
     }
 
-    const mine = m.hunters.filter(h => h.team === team).sort((p, q) => -dirY * (p.y - q.y));
-    for (const h of mine) {
-      if (h.hp <= 0 || m.over) continue;
-
-      // Enemy hunters and walls come first, then the castle, then game.
-      let foe = null, fd = HUNTER.range;
-      for (const o of m.hunters) {
-        const d = dist(h.x, h.y, o.x, o.y);
-        if (o.team === enemy && d < fd) { fd = d; foe = { hunter: o }; }
-      }
-      for (const o of m.walls) {
-        const d = gap({ x: h.x, y: h.y, h: 0, r: 0 }, wallShape(o.x, o.y));
-        if (o.team === enemy && d < fd) { fd = d; foe = { wall: o }; }
-      }
-
+    // Hunter towers: enemy hunters first, then enemy towers, then game, then the castle.
+    for (const t of m.htowers.filter(e => e.team === team)) {
+      if (t.hp <= 0 || m.over) continue;
+      const closest = (list, pad) => {
+        let best = null, bd = HTOWER.range;
+        for (const e of list) {
+          const d = dist(t.x, t.y, e.x, e.y) - pad(e);
+          if (d <= bd) { bd = d; best = e; }
+        }
+        return best;
+      };
+      const foe = closest(m.hunters.filter(e => e.team === enemy), () => 0)
+        || closest(m.htowers.filter(e => e.team === enemy), () => 0);
+      const prey = foe ? null : closest(m.animals, a => a.r);
       if (foe) {
-        const o = foe.hunter || foe.wall;
-        this.hunterShot(h, o.x, o.y - 8);
-        if (foe.hunter) this.hurtHunter(m, o, HUNTER.atkUnit);
-        else this.hurtWall(m, o, HUNTER.atkUnit);
-      } else if (gap({ x: h.x, y: h.y, h: 0, r: 0 }, castleShape(goal)) <= HUNTER.range) {
-        this.hunterShot(h, goal.x, goal.drawY - 30);
-        this.hurtCastle(m, enemy, HUNTER.atkCastle);
+        this.hunterShot(t, foe.x, foe.y - 8);
+        this.hurtCenter(m, foe, HTOWER.atkUnit);
+      } else if (prey) {
+        this.hunterShot(t, prey.x, prey.y);
+        this.hurtAnimal(m, prey, HTOWER.atkAnimal, team);
+      } else if (gap(point(t), castleShape(goal)) <= HTOWER.range) {
+        this.hunterShot(t, goal.x, goal.drawY - 30);
+        this.hurtCastle(m, enemy, HTOWER.atkCastle);
       } else {
-        let prey = null, pd = Infinity;
-        for (const a of m.animals) {
-          if ((a.y - h.y) * dirY < -24) continue; // behind the hunter
-          const d = dist(h.x, h.y, a.x, a.y);
-          if (d < pd) { pd = d; prey = a; }
-        }
-        if (prey && pd <= HUNTER.range) {
-          this.hunterShot(h, prey.x, prey.y);
-          const { x, y } = prey;
-          this.hurtAnimal(m, prey, HUNTER.atkAnimal, team);
-          if (prey.hp <= 0) this.advanceHunter(m, h, x, y);
-        } else if (prey) {
-          this.advanceHunter(m, h, prey.x, prey.y);
-        } else {
-          this.advanceHunter(m, h, goal.x, goal.y);
-        }
+        continue;
       }
-      await this.sleep(m, 0.2);
+      await this.sleep(m, 0.14);
+    }
+
+    // Hunters just keep walking, dragging the build line with them.
+    for (const h of m.hunters.filter(e => e.team === team)) {
+      if (h.hp > 0 && this.stepHunter(m, h)) await this.sleep(m, 0.06);
     }
   }
 
-  hunterShot(h, x, y) {
-    this.fx.shot(h.x, h.y - 26, x, y, { arc: 10, dur: 0.16 });
+  hunterShot(t, x, y) {
+    this.fx.shot(t.x, t.y - 26, x, y, { arc: 10, dur: 0.16 });
     this.sfx.play('bow');
   }
 
-  // Step toward (tx, ty), fanning out to the sides if the direct path is blocked.
-  advanceHunter(m, h, tx, ty) {
-    const d = dist(h.x, h.y, tx, ty);
-    if (d < 34) return;
-    const base = Math.atan2(ty - h.y, tx - h.x);
-    for (const step of [Math.min(HUNTER.step, d - 30), HUNTER.step / 2]) {
-      for (const turn of [0, 0.5, -0.5, 1, -1]) {
+  // One step up the field, fanning out to the sides if something is in the way.
+  stepHunter(m, h) {
+    const dirY = h.team === BLUE ? -1 : 1;
+    const room = (centerLimit(m, h.team) - h.y) * dirY;
+    if (room < 8) return false;
+    const base = dirY < 0 ? -Math.PI / 2 : Math.PI / 2;
+    for (const step of [Math.min(HUNTER.step, room), HUNTER.step / 2]) {
+      for (const turn of [0, 0.45, -0.45, 0.9, -0.9]) {
         const x = h.x + Math.cos(base + turn) * step, y = h.y + Math.sin(base + turn) * step;
         if (!centerFits(m, 'hunter', x, y, h)) continue;
         h.x = x;
         h.y = y;
-        return;
+        return true;
       }
     }
+    return false;
   }
 
   // ---------------------------------------------------------------- per-frame
@@ -580,7 +551,7 @@ export class Game {
       for (const s of lane.squads) {
         const d = s.slot - s.vis;
         s.walking = Math.abs(d) > 0.01;
-        s.vis += clamp(d, -3.2 * dt, 3.2 * dt);
+        s.vis += clamp(d, -WALK_SPEED * dt, WALK_SPEED * dt);
         s.lunge = Math.max(0, s.lunge - dt);
         s.flash = Math.max(0, s.flash - dt);
       }
@@ -588,18 +559,15 @@ export class Game {
         t.flash = Math.max(0, t.flash - dt);
         t.born = Math.min(1, t.born + dt * 4);
       }
-      for (const c of lane.cps) c.pop = Math.max(0, c.pop - dt);
     }
-    for (const h of m.hunters) {
-      const k = Math.min(1, dt * 7);
-      h.vx += (h.x - h.vx) * k;
-      h.vy += (h.y - h.vy) * k;
-      h.flash = Math.max(0, h.flash - dt);
-      h.born = Math.min(1, h.born + dt * 4);
-    }
-    for (const w of m.walls) {
-      w.flash = Math.max(0, w.flash - dt);
-      w.born = Math.min(1, w.born + dt * 4);
+    for (const list of [m.hunters, m.htowers]) {
+      for (const e of list) {
+        const k = Math.min(1, dt * 7);
+        e.vx += (e.x - e.vx) * k;
+        e.vy += (e.y - e.vy) * k;
+        e.flash = Math.max(0, e.flash - dt);
+        e.born = Math.min(1, e.born + dt * 4);
+      }
     }
     for (const c of m.castles) c.flash = Math.max(0, c.flash - dt);
 
@@ -614,19 +582,22 @@ export class Game {
     if (!m || m.board.H === H) return;
     const old = m.board, nb = makeBoard(H);
     const mapY = y => nb.cy + (y - old.cy) * (nb.b / old.b);
-    for (const e of [...m.animals, ...m.hunters, ...m.walls]) {
-      e.y = mapY(e.y);
-      if (e.vy !== undefined) e.vy = mapY(e.vy);
+    const remap = list => {
+      for (const e of list) {
+        e.y = mapY(e.y);
+        if (e.vy !== undefined) e.vy = mapY(e.vy);
+      }
+    };
+    remap(m.animals);
+    remap(m.hunters);
+    remap(m.htowers);
+    for (const snap of m.undo) {
+      remap(snap.hunters);
+      remap(snap.htowers);
     }
     if (m.arrow) {
       m.arrow.y = mapY(m.arrow.y);
       m.arrow.trail = [];
-    }
-    for (const snap of m.undo) {
-      for (const e of [...snap.hunters, ...snap.walls]) {
-        e.y = mapY(e.y);
-        if (e.vy !== undefined) e.vy = mapY(e.vy);
-      }
     }
     m.board = nb;
   }

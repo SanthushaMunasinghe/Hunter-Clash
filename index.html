@@ -66,11 +66,12 @@
     <div class="overlay" id="menu">
       <div class="sheet">
         <h1 class="logo"><span>HUNTER</span><span>CLASH</span></h1>
-        <p class="versus">You <i class="dot blue"></i> vs <i class="dot red"></i> <b id="menu-opponent">NOOB AI</b></p>
+        <p class="pick">CHOOSE YOUR OPPONENT</p>
+        <div class="levels" id="levels"></div>
+        <p class="blurb" id="level-blurb"></p>
         <button class="btn primary big" id="btn-play">PLAY</button>
         <button class="btn ghost big" id="btn-resume">RESUME</button>
         <button class="btn ghost" id="btn-menu-help">HOW TO PLAY</button>
-        <button class="btn link" id="btn-noob">Restart from Noob</button>
       </div>
     </div>
 
@@ -79,6 +80,7 @@
         <h1 class="logo small"><span id="result-title">VICTORY!</span></h1>
         <p id="result-sub"></p>
         <button class="btn primary big" id="btn-again">PLAY AGAIN</button>
+        <button class="btn ghost" id="btn-change">CHANGE OPPONENT</button>
       </div>
     </div>
 
@@ -86,17 +88,19 @@
       <div class="sheet help">
         <h2>HOW TO PLAY</h2>
         <ol>
-          <li><b>Hunt.</b> Drag to aim, release to fire one arrow. It bounces 5 times and takes meat from every animal it hits. A clear shot can hit the red castle.</li>
-          <li><b>Units move.</b> After your shot, your troops and hunters each attack or step forward.</li>
-          <li><b>Attack.</b> Spend meat by dragging cards onto the board, then end your turn.</li>
+          <li><b>Hunt.</b> Drag anywhere to aim (pull back like a slingshot) and release one arrow. It bounces 5 times and takes meat from every animal it hits.</li>
+          <li><b>Units move.</b> Your troops march a step and strike whatever they reach, towers shoot, hunters walk.</li>
+          <li><b>Attack.</b> Drag cards onto the board to spend meat. You get 4 different cards a turn and can play each once.</li>
         </ol>
         <ul>
-          <li><b>Warriors / Archers</b> go on the left or right road, anywhere up to your forward-most checkpoint. Archers shoot 3 steps but are fragile, so send them behind warriors.</li>
-          <li><b>Hunter</b> goes in your part of the field. It shoots the closest animal ahead, moves up after a kill, and fights enemy hunters and the castle.</li>
-          <li><b>Wall</b> goes in your part of the field and blocks enemy arrows and hunters.</li>
-          <li><b>Guard Tower</b> goes on a checkpoint you hold. Your troops pass; enemies must break it.</li>
+          <li><b>Warriors</b> hit hard up close and walk past your archers to meet the enemy.</li>
+          <li><b>Archers</b> stop at range and shoot. They are fragile, so send them behind warriors.</li>
+          <li>Troops go on either road, from your gate up to the furthest checkpoint your units hold. Lose the units and you lose the checkpoints.</li>
+          <li><b>Guard Tower</b> sits on a checkpoint you hold. Weak, but the enemy must break it to pass.</li>
+          <li><b>Hunter Tower</b> goes in your part of the field and shoots animals that come close.</li>
+          <li><b>Hunter</b> walks up the field. You can build as far forward as your furthest hunter.</li>
         </ul>
-        <p>Destroy the red castle to win. From turn 12, castles take double damage.</p>
+        <p>Break the red castle to win. Castles shoot troops at their gate, so keep the waves coming. After 25 turns the healthier castle wins.</p>
         <button class="btn primary" id="btn-help-close">GOT IT</button>
       </div>
     </div>

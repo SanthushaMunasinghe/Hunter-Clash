@@ -4,16 +4,29 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 
 Each turn has two states:
 
-1. **Hunt** – drag to aim (pull back like a slingshot, or push toward the target) and release one bouncing arrow. It bounces 5 times, taking a bite of meat out of every animal it hits. With a clear line it can hit the enemy castle too. When the arrow lands, your troops and hunters each attack or take a step forward.
-2. **Attack** – spend meat on cards. You hold 4 at a time from a cycling deck; drag one onto the board:
-   - **Warriors / Archers** – drop on the left or right lane, anywhere up to your forward-most checkpoint. They step forward as they land and capture checkpoints they reach.
-   - **Hunter** – drop in your part of the centre field. Shoots the closest animal ahead, advances as it kills, and fights enemy hunters, walls and the castle.
-   - **Wall** – drop in your part of the centre field to block enemy arrows and hunters.
-   - **Guard Tower** – drop on a checkpoint you have captured. Your troops pass through; the enemy has to break it.
+1. **Hunt** – drag to aim (pull back like a slingshot, or push toward the target) and release one bouncing arrow. It bounces 5 times, taking a bite of meat out of every animal it hits. When the arrow lands, your troops march a step and strike whatever they reach, towers shoot and hunters walk.
+2. **Attack** – spend meat on cards. Each turn deals 4 different cards out of 5, and each can be played once that turn. Drag one onto the board:
+   - **Warriors** – hit hard at close range and walk past friendly archers to meet the enemy head on.
+   - **Archers** – stop as soon as an enemy is in range and shoot from there. Fragile.
+   - **Guard Tower** – goes on a checkpoint you hold. Barely scratches anyone, but the enemy has to break it to pass.
+   - **Hunter Tower** – goes in your part of the centre field. Never moves; shoots animals and enemy hunters that come close.
+   - **Hunter** – walks up the centre field. You can build as far forward as your furthest hunter or hunter tower.
 
-Destroy the enemy castle to win. From turn 12 castles take double damage, so matches don't stall.
+## Lanes
 
-Beating an opponent unlocks the next one: Noob, Rookie, Hunter, Warlord. All numbers (unit stats, prices, AI levels) live in `js/config.js`.
+Each road is a row of 25 slots with 5 checkpoints, 4 open slots between neighbours. The slot beside each castle is that team's home slot: nobody else may stand there, so you can always deploy at your own gate.
+
+Checkpoints belong to whoever's front line has reached them, and troops can be dropped on any free slot from your gate up to the furthest checkpoint you hold. Lose the units holding the line and the checkpoints go with them.
+
+A castle has 100 health and its own guards, who shoot whatever reaches the gate. Pushes are meant to arrive, land a hit or two and die, so keep sending waves. The hunting arrow only does 5 to a castle; the lanes decide the match.
+
+Matches are capped at 25 turns. If both castles are still standing, the healthier one wins (then checkpoints held, then meat).
+
+## Opponents
+
+Noob, Recruit, Veteran, Ace and Legend, picked on the menu before a match. They differ only in how well they aim and think; every unit stat and price is the same for both sides. A fresh page load always starts on Noob, whose first turn shows a drag-to-aim demo.
+
+All numbers (unit stats, prices, AI levels) live in `js/config.js`.
 
 ## Run locally
 
@@ -40,7 +53,8 @@ js/board.js       field, lane and checkpoint geometry
 js/game.js        match state and turn flow
 js/arrow.js       bouncing arrow physics and shot simulation
 js/animals.js     animal spawning and wandering
-js/cards.js       cards, deck and placement rules
+js/rules.js       who may stand, move and build where; the lane step
+js/cards.js       dealing hands and playing cards
 js/ai.js          computer opponent
 js/render.js      canvas rendering
 js/sprites.js     procedural sprite drawing

@@ -1,6 +1,8 @@
-import { W, BLUE, ROAD, CARDS, HUNTER, ARROW } from './config.js';
+import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, HTOWER, ARROW } from './config.js';
 import * as S from './sprites.js';
-import { seeded, rand, lerp, easeOut, TAU } from './utils.js';
+import { cpOwner, homeSlot, towerAt } from './rules.js';
+import { previewPath } from './arrow.js';
+import { seeded, rand, lerp, clamp, easeOut, TAU } from './utils.js';
 
 const NOCK = 14;
 
@@ -56,6 +58,8 @@ export class Renderer {
     this.scale = 1;
     this.bg = document.createElement('canvas');
     this.bgKey = '';
+    this.cpSeen = new Map(); // checkpoint -> { owner, since } so a change of hands can pop
+    this.cpMatch = null;
   }
 
   // scale = device pixels per virtual pixel.
@@ -225,7 +229,7 @@ export class Renderer {
     if (sh > 0.2) ctx.translate(rand(-sh, sh), rand(-sh, sh));
 
     const drag = input.drag;
-    this.drawCheckpoints(ctx, m);
+    this.drawGround(ctx, m, t);
     if (drag) this.drawDropZones(ctx, m, drag, t);
     this.drawEntities(ctx, m, t);
     this.drawAim(ctx, m, t);
@@ -234,11 +238,29 @@ export class Renderer {
     if (drag) this.drawDropGhost(ctx, m, drag, t);
   }
 
-  drawCheckpoints(ctx, m) {
+  // Home pads and checkpoints, flat on the road.
+  drawGround(ctx, m, t) {
+    const b = m.board;
+    if (this.cpMatch !== m) {
+      this.cpMatch = m;
+      this.cpSeen.clear();
+    }
     m.lanes.forEach((lane, li) => {
-      for (const cp of lane.cps) {
-        const p = m.board.lanePoint(li, cp.slot);
-        S.drawCheckpoint(ctx, p.x, p.y, cp.owner, cp.pop);
+      for (const team of [BLUE, RED]) {
+        const slot = homeSlot(team), p = b.lanePoint(li, slot), d = b.laneDir(li, slot);
+        const sign = team === BLUE ? 1 : -1;
+        S.drawHomePad(ctx, p.x, p.y, team, d.x * sign, d.y * sign);
+      }
+      for (const slot of CHECKPOINTS) {
+        const owner = cpOwner(lane, slot), key = li * 100 + slot;
+        let seen = this.cpSeen.get(key);
+        if (!seen) this.cpSeen.set(key, seen = { owner, since: -9 });
+        if (seen.owner !== owner) {
+          seen.owner = owner;
+          seen.since = t;
+        }
+        const p = b.lanePoint(li, slot);
+        S.drawCheckpoint(ctx, p.x, p.y, owner, Math.max(0, 0.5 - (t - seen.since)));
       }
     });
   }
@@ -247,28 +269,30 @@ export class Renderer {
   drawEntities(ctx, m, t) {
     const b = m.board, list = [];
     const add = (y, fn) => list.push({ y, fn });
+    const unitScale = clamp(b.slotPx / 34, 0.92, 1.2);
 
     m.lanes.forEach((lane, li) => {
       const outward = li === 0 ? -1 : 1;
-      for (const cp of lane.cps) {
-        const p = b.lanePoint(li, cp.slot);
-        add(p.y - 4, () => S.drawCheckpointFlag(ctx, p.x + outward * 19, p.y + 2, cp.owner, t));
+      for (const slot of CHECKPOINTS) {
+        const owner = cpOwner(lane, slot), p = b.lanePoint(li, slot);
+        add(p.y - 4, () => S.drawCheckpointFlag(ctx, p.x + outward * 19, p.y + 2, owner, t));
       }
       for (const tw of lane.towers) {
         const p = b.lanePoint(li, tw.slot);
         add(p.y, () => S.drawTower(ctx, p.x, p.y, tw.team, tw.hp / tw.maxHp, tw.flash, tw.born, t));
       }
       for (const sq of lane.squads) {
-        const p = b.lanePoint(li, sq.vis);
+        const p = b.lanePoint(li, sq.vis), d = b.laneDir(li, sq.vis);
         // Step aside when sharing a checkpoint with a friendly tower.
-        if (lane.towers.some(tw => tw.slot === sq.slot)) p.x -= outward * 15;
-        const k = sq.lunge > 0 ? Math.sin((1 - sq.lunge / 0.22) * Math.PI) * 12 : 0;
+        if (towerAt(lane, sq.slot)) p.x -= outward * 17;
+        const k = sq.lunge > 0 ? Math.sin((1 - sq.lunge / 0.22) * Math.PI) * 10 : 0;
         const count = Math.max(1, Math.ceil((sq.hp / sq.maxHp) * 3));
-        add(p.y + 6, () => S.drawSquad(ctx, p.x + sq.lx * k, p.y + sq.ly * k, sq.team, sq.kind, count, sq.hp, sq.flash, t, sq.walking));
+        add(p.y + 4, () => S.drawSquad(ctx, p.x + sq.lx * k, p.y + sq.ly * k, -d.y, d.x,
+          sq.team, sq.kind, count, sq.hp / sq.maxHp, sq.flash, t, sq.walking, unitScale));
       }
     });
-    for (const w of m.walls) add(w.y, () => S.drawWall(ctx, w.x, w.y, w.team, w.hp / w.maxHp, w.flash, w.born));
-    for (const h of m.hunters) add(h.vy + 6, () => S.drawHunter(ctx, h.vx, h.vy, h.team, h.hp / h.maxHp, h.flash, h.born));
+    for (const h of m.htowers) add(h.vy + 6, () => S.drawHtower(ctx, h.vx, h.vy, h.team, h.hp / h.maxHp, h.flash, h.born));
+    for (const h of m.hunters) add(h.vy + 4, () => S.drawHunter(ctx, h.vx, h.vy, h.team, h.hp / h.maxHp, h.flash, h.born, t));
     for (const a of m.animals) add(a.y + a.r * 0.6, () => S.drawAnimal(ctx, a, t));
     for (const c of b.castles) {
       const st = m.castles[c.team];
@@ -280,30 +304,60 @@ export class Renderer {
   }
 
   drawAim(ctx, m, t) {
-    const b = m.board;
     if (m.phase === 'aim' && m.turnTeam === BLUE && !m.aim) {
-      // Idle hint: a faint guide sweeping across the field.
-      const L = b.castles[BLUE].launch, ang = -Math.PI / 2 + Math.sin(t * 1.3) * 0.55;
-      for (let i = 1; i <= 9; i++) {
-        ctx.fillStyle = `rgba(255,255,255,${0.5 - i * 0.045})`;
-        S.circle(ctx, L.x + Math.cos(ang) * i * 16, L.y + Math.sin(ang) * i * 16, 3);
-        ctx.fill();
-      }
-      S.drawArrow(ctx, L.x + Math.cos(ang) * NOCK, L.y + Math.sin(ang) * NOCK, ang, BLUE);
+      // Waiting for the player: arrow nocked straight ahead, plus a nudge.
+      const L = m.board.castles[BLUE].launch;
+      const demo = m.tutorial ? this.tutorialPose(m, t) : null;
+      if (demo && demo.aim) this.drawAimPath(ctx, previewPath(m, BLUE, demo.aim.angle), demo.aim.angle, demo.aim.pull, BLUE, t);
+      else S.drawArrow(ctx, L.x, L.y - NOCK, -Math.PI / 2, BLUE);
+      this.drawAimPopup(ctx, L.x, L.y - 58, t);
+      if (demo) S.drawHand(ctx, demo.x, demo.y, demo.pressed, demo.alpha);
       return;
     }
     const aim = m.aim;
-    if (!aim || !aim.path) return;
-    const pts = aim.path, L = pts[0], col = aim.team === BLUE ? '255,255,255' : '255,190,190';
+    if (aim && aim.path) this.drawAimPath(ctx, aim.path, aim.angle, aim.pull, aim.team, t);
+  }
+
+  // The looping hand demo shown on the first turn of a Noob match: press, pull back, let go.
+  tutorialPose(m, t) {
+    const b = m.board, u = (t % 2.8) / 2.8;
+    const from = { x: b.cx + 128, y: b.FB - 214 }, to = { x: b.cx + 72, y: b.FB - 104 };
+    const k = easeOut(clamp((u - 0.22) / 0.36, 0, 1));
+    const x = lerp(from.x, to.x, k), y = lerp(from.y, to.y, k);
+    const pose = { x, y, pressed: u > 0.14 && u < 0.84, alpha: clamp(u / 0.1, 0, 1) * clamp((1 - u) / 0.1, 0, 1), aim: null };
+    const dx = x - from.x, dy = y - from.y, len = Math.hypot(dx, dy);
+    if (pose.pressed && len > 14) pose.aim = { angle: Math.atan2(-dy, -dx), pull: Math.min(len, 90) };
+    return pose;
+  }
+
+  drawAimPopup(ctx, x, y, t) {
+    const bob = Math.sin(t * 4) * 2.5, w = 132, h = 28;
+    ctx.save();
+    ctx.translate(x, y + bob);
+    ctx.fillStyle = 'rgba(31,36,51,0.92)';
+    S.rr(ctx, -w / 2, -h / 2, w, h, 14);
+    ctx.fill();
+    S.poly(ctx, [-7, h / 2 - 1, 7, h / 2 - 1, 0, h / 2 + 7]);
+    ctx.fill();
+    ctx.font = S.fontStr(15);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffcf3f';
+    ctx.fillText('DRAG TO AIM', 0, 1);
+    ctx.restore();
+  }
+
+  // Dotted preview: launch -> first contact, then a short fading stub of the bounce.
+  drawAimPath(ctx, pts, angle, pull, team, t) {
+    const L = pts[0], col = team === BLUE ? '255,255,255' : '255,190,190';
 
     // Pulled-back string behind the launch point.
-    const bx = L.x - Math.cos(aim.angle) * aim.pull * 0.6, by = L.y - Math.sin(aim.angle) * aim.pull * 0.6;
     ctx.strokeStyle = `rgba(${col},0.5)`;
     ctx.lineWidth = 5;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(L.x, L.y);
-    ctx.lineTo(bx, by);
+    ctx.lineTo(L.x - Math.cos(angle) * pull * 0.6, L.y - Math.sin(angle) * pull * 0.6);
     ctx.stroke();
     ctx.lineCap = 'butt';
 
@@ -328,7 +382,7 @@ export class Renderer {
       ctx.stroke();
     }
     if (pts[2]) dots(pts[1], pts[2], 130, 0.7, 0.05);
-    S.drawArrow(ctx, L.x + Math.cos(aim.angle) * NOCK, L.y + Math.sin(aim.angle) * NOCK, aim.angle, aim.team);
+    S.drawArrow(ctx, L.x + Math.cos(angle) * NOCK, L.y + Math.sin(angle) * NOCK, angle, team);
   }
 
   drawArrow(ctx, m) {
@@ -371,9 +425,9 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
     for (const s of fx.shots) {
-      const k = s.t / s.dur, e = 0.02;
+      const k = s.t / s.dur;
       const at = u => ({ x: lerp(s.x0, s.x1, u), y: lerp(s.y0, s.y1, u) - Math.sin(u * Math.PI) * s.arc });
-      const p = at(k), q = at(Math.min(1, k + e));
+      const p = at(k), q = at(Math.min(1, k + 0.02));
       S.drawArrow(ctx, p.x, p.y, Math.atan2(q.y - p.y, q.x - p.x), BLUE, 0.6);
     }
     for (const tx of fx.texts) {
@@ -393,8 +447,10 @@ export class Renderer {
 
   // Where the card being dragged is allowed to land.
   drawDropZones(ctx, m, d, t) {
-    const b = m.board, pulse = 0.5 + 0.5 * Math.sin(t * 6);
-    if (CARDS[d.id].zone === 'center') {
+    const b = m.board, pulse = 0.5 + 0.5 * Math.sin(t * 6), zone = CARDS[d.id].zone;
+    const on = o => d.target && d.target.valid && d.target.lane === o.lane && d.target.slot === o.slot;
+
+    if (zone === 'center') {
       const line = d.options.line;
       ctx.save();
       trace(ctx, b.fieldPts);
@@ -412,15 +468,46 @@ export class Renderer {
       ctx.restore();
       return;
     }
+
+    if (zone === 'lane') {
+      // One glowing strip per lane over the stretch you hold, a dot on every free slot.
+      for (const li of [0, 1]) {
+        const slots = d.options.spots.filter(o => o.lane === li).map(o => o.slot);
+        if (!slots.length) continue;
+        const lo = Math.min(...slots), hi = Math.max(...slots);
+        ctx.beginPath();
+        for (let s = lo - 0.4; s <= hi + 0.4; s += 0.2) {
+          const p = b.lanePoint(li, s);
+          ctx.lineTo(p.x, p.y);
+        }
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = `rgba(70,170,255,${0.42 + pulse * 0.18})`;
+        ctx.lineWidth = ROAD.width - 12;
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+      }
+      for (const o of d.options.spots) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        S.circle(ctx, o.x, o.y, on(o) ? 0 : 3.5);
+        ctx.fill();
+        if (!on(o)) continue;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        S.ellipse(ctx, o.x, o.y, 23, 18);
+        ctx.stroke();
+      }
+      return;
+    }
+
     for (const o of d.options.spots) {
-      const on = d.target && d.target.valid && d.target.lane === o.lane && d.target.slot === o.slot;
-      ctx.fillStyle = on ? 'rgba(70,170,255,0.85)' : `rgba(70,170,255,${0.45 + pulse * 0.2})`;
-      S.ellipse(ctx, o.x, o.y, on ? 28 : 24, on ? 22 : 19);
+      ctx.fillStyle = on(o) ? 'rgba(70,170,255,0.85)' : `rgba(70,170,255,${0.45 + pulse * 0.2})`;
+      S.ellipse(ctx, o.x, o.y, on(o) ? 28 : 24, on(o) ? 22 : 19);
       ctx.fill();
-      ctx.setLineDash(on ? [] : [6, 5]);
+      ctx.setLineDash(on(o) ? [] : [6, 5]);
       ctx.lineDashOffset = -t * 20;
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = on ? 3.5 : 2.5;
+      ctx.lineWidth = on(o) ? 3.5 : 2.5;
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -430,21 +517,23 @@ export class Renderer {
   drawDropGhost(ctx, m, d, t) {
     const tg = d.target;
     if (!tg || !d.onBoard) return;
-    const zone = CARDS[d.id].zone;
+    const b = m.board, zone = CARDS[d.id].zone;
     if (zone === 'center') {
       ctx.globalAlpha = tg.valid ? 0.9 : 0.45;
-      if (d.id === 'hunter') {
+      if (d.id === 'htower') {
         if (tg.valid) {
-          ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+          ctx.fillStyle = 'rgba(255,255,255,0.12)';
+          ctx.strokeStyle = 'rgba(255,255,255,0.7)';
           ctx.lineWidth = 2;
           ctx.setLineDash([6, 6]);
-          S.circle(ctx, tg.x, tg.y, HUNTER.range);
+          S.circle(ctx, tg.x, tg.y, HTOWER.range);
+          ctx.fill();
           ctx.stroke();
           ctx.setLineDash([]);
         }
-        S.drawHunter(ctx, tg.x, tg.y, BLUE, 1, 0, 1, false);
+        S.drawHtower(ctx, tg.x, tg.y, BLUE, 1, 0, 1, false);
       } else {
-        S.drawWall(ctx, tg.x, tg.y, BLUE, 1, 0);
+        S.drawHunter(ctx, tg.x, tg.y, BLUE, 1, 0, 1, t, false);
       }
       ctx.globalAlpha = 1;
       if (!tg.valid) {
@@ -459,8 +548,12 @@ export class Renderer {
       }
     } else if (tg.valid) {
       ctx.globalAlpha = 0.85;
-      if (zone === 'lane') S.drawSquad(ctx, tg.x, tg.y, BLUE, d.id, 3, null, 0, t, true);
-      else S.drawTower(ctx, tg.x, tg.y, BLUE, 1, 0, 1, t, false);
+      if (zone === 'lane') {
+        const dir = b.laneDir(tg.lane, tg.slot);
+        S.drawSquad(ctx, tg.x, tg.y, -dir.y, dir.x, BLUE, d.id, 3, null, 0, t, true, clamp(b.slotPx / 34, 0.92, 1.2));
+      } else {
+        S.drawTower(ctx, tg.x, tg.y, BLUE, 1, 0, 1, t, false);
+      }
       ctx.globalAlpha = 1;
     }
   }

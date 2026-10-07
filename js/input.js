@@ -39,6 +39,11 @@ export class Input {
     return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
   }
 
+  // Keep receiving this pointer's moves even when it leaves the element.
+  capture(el, e) {
+    try { el.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+  }
+
   // ---------------------------------------------------------------- aiming
 
   canAim() {
@@ -52,7 +57,7 @@ export class Input {
     this.aimPtr = e.pointerId;
     this.aimStart = this.toVirtual(e);
     this.aimMode = null;
-    this.canvas.setPointerCapture(e.pointerId);
+    this.capture(this.canvas, e);
   }
 
   // Pull back like a slingshot, or push toward the target: whichever way the drag
@@ -97,11 +102,13 @@ export class Input {
       if (m.turnTeam === BLUE && m.phase === 'aim') this.ui.toast('Shoot your arrow first');
       return;
     }
-    const id = m.teams[BLUE].hand[idx], blocker = cardBlocker(m, BLUE, id);
+    const id = m.teams[BLUE].hand[idx];
+    if (!id) return; // already played this turn
+    const blocker = cardBlocker(m, BLUE, id);
     if (blocker) {
       const short = CARDS[id].cost - m.teams[BLUE].meat;
       this.ui.toast(blocker === 'meat' ? `Need ${short} more meat`
-        : id === 'tower' ? 'Capture a checkpoint first' : 'No free spot in your lanes');
+        : id === 'tower' ? 'Hold a checkpoint first' : 'No free slot on your roads');
       this.sfx.play('error');
       return;
     }
@@ -109,7 +116,7 @@ export class Input {
       idx, id, ptr: e.pointerId, lift: e.pointerType === 'mouse' ? 0 : TOUCH_LIFT,
       options: dropOptions(m, BLUE, id), target: null, onBoard: false, x: 0, y: 0,
     };
-    el.setPointerCapture(e.pointerId);
+    this.capture(el, e);
     this.ui.setDragging(idx, id);
     this.sfx.play('click');
     this.cardMove(e);

@@ -1,4 +1,4 @@
-import { BLUE, RED, CARDS, LEVELS, ARROW, HAND_SIZE, SUDDEN_DEATH } from './config.js';
+import { BLUE, RED, CARDS, LEVELS, ARROW, HAND_SIZE, TURN_LIMIT } from './config.js';
 import { cardBlocker } from './cards.js';
 import { cardIcon, meatIconURL } from './sprites.js';
 
@@ -9,7 +9,7 @@ const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"
 
 // HUD, card panel and overlays. All DOM; the board itself is canvas.
 export class UI {
-  // app: { level, startMatch(level), resume() } supplied by main.js
+  // app: { level, startMatch(level) } supplied by main.js
   constructor(game, sfx, app) {
     this.game = game;
     this.sfx = sfx;
@@ -17,6 +17,7 @@ export class UI {
     this.cache = {};
     this.dragIdx = -1;
     this.toastTimer = 0;
+    this.nextLevel = 0;
 
     const meat = meatIconURL();
     this.icons = {};
@@ -33,22 +34,32 @@ export class UI {
       this.cardEls.push(el);
     }
 
-    const tap = (id, fn) => $(id).addEventListener('click', () => {
+    const tap = (el, fn) => el.addEventListener('click', () => {
       sfx.unlock();
       sfx.play('click');
       fn();
     });
-    tap('btn-end', () => game.playerEndTurn());
-    tap('btn-undo', () => game.playerUndo());
-    tap('btn-help', () => this.show('help'));
-    tap('btn-help-close', () => this.hide('help'));
-    tap('btn-menu-help', () => this.show('help'));
-    tap('btn-restart', () => this.showMenu(true));
-    tap('btn-sound', () => this.setSoundIcon(sfx.toggle()));
-    tap('btn-play', () => { this.hide('menu'); app.startMatch(app.level); });
-    tap('btn-resume', () => { this.hide('menu'); });
-    tap('btn-noob', () => { this.hide('menu'); this.hide('result'); app.startMatch(0); });
-    tap('btn-again', () => { this.hide('result'); app.startMatch(this.nextLevel); });
+
+    this.levelEls = LEVELS.map((lvl, i) => {
+      const el = document.createElement('button');
+      el.className = 'lvl';
+      el.innerHTML = `<b>${lvl.name}</b><i>${'●'.repeat(i + 1)}${'○'.repeat(LEVELS.length - 1 - i)}</i>`;
+      tap(el, () => this.pickLevel(i));
+      $('levels').appendChild(el);
+      return el;
+    });
+
+    tap($('btn-end'), () => game.playerEndTurn());
+    tap($('btn-undo'), () => game.playerUndo());
+    tap($('btn-help'), () => this.show('help'));
+    tap($('btn-help-close'), () => this.hide('help'));
+    tap($('btn-menu-help'), () => this.show('help'));
+    tap($('btn-restart'), () => this.showMenu(true));
+    tap($('btn-sound'), () => this.setSoundIcon(sfx.toggle()));
+    tap($('btn-play'), () => { this.hide('menu'); app.startMatch(app.level); });
+    tap($('btn-resume'), () => this.hide('menu'));
+    tap($('btn-again'), () => { this.hide('result'); app.startMatch(this.nextLevel); });
+    tap($('btn-change'), () => { this.hide('result'); this.showMenu(false); });
     this.setSoundIcon(sfx.muted);
 
     game.onEvent = (type, data) => this.onEvent(type, data);
@@ -75,23 +86,30 @@ export class UI {
     this.game.paused = !!document.querySelector('.overlay.show');
   }
 
+  pickLevel(i) {
+    this.app.level = i;
+    this.levelEls.forEach((el, k) => el.classList.toggle('on', k === i));
+    $('level-blurb').textContent = LEVELS[i].blurb;
+  }
+
+  // inMatch: opened from the HUD mid-game, so offer Resume alongside Restart.
   showMenu(inMatch) {
-    const lvl = LEVELS[this.app.level];
-    $('menu-opponent').textContent = lvl.name;
+    this.pickLevel(this.app.level);
     $('btn-play').textContent = inMatch ? 'RESTART MATCH' : 'PLAY';
     $('btn-resume').style.display = inMatch ? '' : 'none';
-    $('btn-noob').style.display = this.app.level > 0 ? '' : 'none';
     this.show('menu');
   }
 
   showResult(winner) {
-    const won = winner === BLUE, m = this.game.match, last = this.app.level >= LEVELS.length - 1;
-    this.nextLevel = won && !last ? this.app.level + 1 : this.app.level;
+    const won = winner === BLUE, m = this.game.match, last = m.levelIdx >= LEVELS.length - 1;
+    const name = LEVELS[m.levelIdx].name;
+    this.nextLevel = won && !last ? m.levelIdx + 1 : m.levelIdx;
     $('result').classList.toggle('lost', !won);
     $('result-title').textContent = won ? 'VICTORY!' : 'DEFEAT';
-    $('result-sub').textContent = won
-      ? `You beat ${LEVELS[m.levelIdx].name} in ${m.turn} turns.`
-      : `${LEVELS[m.levelIdx].name} took your castle on turn ${m.turn}.`;
+    const [mine, theirs] = m.castles.map(c => c.hp);
+    $('result-sub').textContent = m.over.how === 'time'
+      ? `Time is up. Your castle ${mine}, ${name} ${theirs}.`
+      : won ? `You beat ${name} in ${m.turn} turns.` : `${name} took your castle on turn ${m.turn}.`;
     $('btn-again').textContent = !won ? 'TRY AGAIN' : last ? 'PLAY AGAIN' : `NEXT: ${LEVELS[this.nextLevel].name}`;
     this.sfx.play(won ? 'win' : 'lose');
     this.show('result');
@@ -153,10 +171,10 @@ export class UI {
         $(barId).style.width = (v / m.castles[team].maxHp) * 100 + '%';
       });
     }
-    this.put('enemy', LEVELS[m.levelIdx].name, v => { $('enemy-name').textContent = v; });
+    this.put('enemy', LEVELS[m.levelIdx].name, v => { $('enemy-name').textContent = v + ' AI'; });
     this.put('turn', m.turn, v => {
-      $('turn-num').textContent = 'TURN ' + v;
-      $('turn').classList.toggle('sudden', v >= SUDDEN_DEATH.turn);
+      $('turn-num').textContent = v > TURN_LIMIT ? 'TIEBREAK' : `TURN ${v}/${TURN_LIMIT}`;
+      $('turn').classList.toggle('sudden', v > TURN_LIMIT - 5);
     });
     this.put('who', live ? m.turnTeam : -1, v => {
       $('turn-who').textContent = v === BLUE ? 'YOUR MOVE' : v === RED ? 'ENEMY MOVE' : 'GET READY';
@@ -183,19 +201,25 @@ export class UI {
     this.put('undo', cardsOn && m.undo.length > 0, v => { $('btn-undo').disabled = !v; });
 
     m.teams[BLUE].hand.forEach((id, i) => {
-      const el = this.cardEls[i], card = CARDS[id];
+      const el = this.cardEls[i];
+      // A played card leaves its slot empty until the next turn's deal.
       this.put('card' + i, id, () => {
-        el.querySelector('.name').textContent = card.name;
+        if (!id) return;
+        el.querySelector('.name').textContent = CARDS[id].name;
         el.querySelector('.art').src = this.icons[id];
-        el.querySelector('.cost b').textContent = card.cost;
+        el.querySelector('.cost b').textContent = CARDS[id].cost;
         el.animate([{ transform: 'scale(0.75)' }, { transform: 'scale(1)' }], { duration: 200, easing: 'ease-out' });
       });
-      const blocker = cardBlocker(m, BLUE, id);
-      let cls = 'card ' + id;
-      if (blocker === 'meat') cls += ' poor';
-      if (!cardsOn) cls += ' locked';
-      else if (blocker) cls += ' off';
-      if (this.dragIdx === i) cls += ' dragging';
+      let cls = 'card';
+      if (!id) cls += ' empty';
+      else {
+        const blocker = cardBlocker(m, BLUE, id);
+        cls += ' ' + id;
+        if (blocker === 'meat') cls += ' poor';
+        if (!cardsOn) cls += ' locked';
+        else if (blocker) cls += ' off';
+        if (this.dragIdx === i) cls += ' dragging';
+      }
       this.put('cls' + i, cls, v => { el.className = v; });
     });
   }

@@ -1,4 +1,4 @@
-import { ANIMALS, MAX_ANIMALS, HUNTER, WALL, CASTLE } from './config.js';
+import { ANIMALS, MIN_ANIMALS, MAX_ANIMALS, HUNTER, HTOWER, CASTLE } from './config.js';
 import { rand, dist, clamp, gap, TAU } from './utils.js';
 
 const LAUNCH_CLEAR = 42; // animals keep out of the mouth of each castle
@@ -21,7 +21,7 @@ function spotFree(m, x, y, r, pad) {
   }
   for (const a of m.animals) if (dist(x, y, a.x, a.y) < r + a.r + pad) return false;
   for (const h of m.hunters) if (dist(x, y, h.x, h.y) < r + HUNTER.r + 8) return false;
-  for (const w of m.walls) if (gap(me, { x: w.x, y: w.y, h: WALL.w / 2 - WALL.r, r: WALL.r }) < 6) return false;
+  for (const t of m.htowers) if (dist(x, y, t.x, t.y) < r + HTOWER.r + 8) return false;
   return true;
 }
 
@@ -46,18 +46,22 @@ export function initAnimals(m) {
   for (const type of ['bear', 'bull', 'cow', 'cow', 'sheep', 'sheep', 'sheep']) spawnPair(m, type, 1);
 }
 
-// Called once per round. Tops the field back up a pair at a time.
-export function respawnAnimals(m) {
-  if (m.animals.length > MAX_ANIMALS - 2) return;
-  if (m.animals.length >= 8 && m.turn % 2 === 0) return;
+function randomType() {
   let total = 0;
   for (const k in ANIMALS) total += ANIMALS[k].weight;
-  let roll = rand(total), type = 'sheep';
+  let roll = rand(total);
   for (const k in ANIMALS) {
     roll -= ANIMALS[k].weight;
-    if (roll <= 0) { type = k; break; }
+    if (roll <= 0) return k;
   }
-  spawnPair(m, type, 0);
+  return 'sheep';
+}
+
+// Animals only ever arrive at the start of a turn: one mirrored pair while there is
+// room, and as many as it takes to keep at least MIN_ANIMALS on the field.
+export function respawnAnimals(m) {
+  if (m.animals.length <= MAX_ANIMALS - 2) spawnPair(m, randomType(), 0);
+  for (let i = 0; i < 6 && m.animals.length < MIN_ANIMALS; i++) spawnPair(m, randomType(), 0);
 }
 
 function pushOut(a, px, py, minDist) {
@@ -116,10 +120,7 @@ export function updateAnimals(m, dt) {
   // ...and out of anything solid.
   for (const a of list) {
     for (const h of m.hunters) pushOut(a, h.x, h.y, a.r + HUNTER.r + 3);
-    for (const w of m.walls) {
-      const half = WALL.w / 2 - WALL.r;
-      pushOut(a, clamp(a.x, w.x - half, w.x + half), w.y, a.r + WALL.r + 3);
-    }
+    for (const t of m.htowers) pushOut(a, t.x, t.y, a.r + HTOWER.r + 3);
     for (const c of b.castles) {
       pushOut(a, clamp(a.x, c.x - CASTLE.halfLen, c.x + CASTLE.halfLen), c.y, a.r + CASTLE.r + 4);
       pushOut(a, c.launch.x, c.launch.y, a.r + LAUNCH_CLEAR);

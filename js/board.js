@@ -1,4 +1,4 @@
-import { W, HUD_H, PANEL_H, FIELD, ROAD, LANE_LEN, BLUE, RED } from './config.js';
+import { W, HUD_H, PANEL_H, FIELD, ROAD, LANE_LEN, HOME_INSET, BLUE, RED } from './config.js';
 import { lerp, clamp } from './utils.js';
 
 const sp = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
@@ -58,16 +58,21 @@ export function makeBoard(H) {
     return { x: lerp(L.pts[lo].x, L.pts[hi].x, t), y: lerp(L.pts[lo].y, L.pts[hi].y, t) };
   }
 
-  // Slots 1..LANE_LEN-1 are squeezed inward a little so the end slots clear the castles.
-  const inner = k => lerp(0.05, 0.95, k / LANE_LEN);
-  function slotFrac(s) {
-    if (s <= 0) return 0;
-    if (s >= LANE_LEN) return 1;
-    if (s < 1) return inner(1) * s;
-    if (s > LANE_LEN - 1) return lerp(inner(LANE_LEN - 1), 1, s - (LANE_LEN - 1));
-    return inner(s);
+  // Slots are evenly spaced between the two home slots, which sit HOME_INSET px
+  // along the road from each castle. Fractional slots are fine (units mid-walk).
+  function lanePoint(li, s) {
+    const e = HOME_INSET / lanes[li].len;
+    return laneAt(li, e + (s / LANE_LEN) * (1 - 2 * e));
   }
-  const lanePoint = (li, s) => laneAt(li, slotFrac(s));
+
+  // Unit vector along the lane toward red's end.
+  function laneDir(li, s) {
+    const p = lanePoint(li, s - 0.4), q = lanePoint(li, s + 0.4);
+    const l = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+    return { x: (q.x - p.x) / l, y: (q.y - p.y) / l };
+  }
+
+  const slotPx = (lanes[0].len - 2 * HOME_INSET) / LANE_LEN;
 
   // x/y is the centre of the castle's collision capsule, drawY the sprite anchor,
   // launch the point arrows are fired from.
@@ -77,7 +82,7 @@ export function makeBoard(H) {
 
   return {
     H, T, B, cx, cy, a, b, n, FT, FB,
-    edge, ring, fieldG, fieldN, lanePoint, castles,
+    edge, ring, fieldG, fieldN, lanePoint, laneDir, slotPx, castles,
     fieldPts: ring(0),
     roadPts: ring(ROAD.offset),
   };
