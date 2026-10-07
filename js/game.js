@@ -1,12 +1,12 @@
 import {
-  BLUE, RED, CHECKPOINTS, CASTLE, ARROW, HTOWER, HUNTER, CARDS, LEVELS, TURN_LIMIT,
+  BLUE, RED, CHECKPOINTS, CASTLE, ARROW, HTOWER, CARDS, LEVELS, TURN_LIMIT,
 } from './config.js';
 import { makeBoard } from './board.js';
-import { initAnimals, updateAnimals, respawnAnimals } from './animals.js';
+import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
 import { collectObstacles, stepArrow, previewPath } from './arrow.js';
 import { newTeam, dealHand, playCard, canPlayAny } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
-import { advance, laneStep, cpOwner, centerFits, centerLimit, castleShape } from './rules.js';
+import { advance, laneStep, cpOwner, castleShape } from './rules.js';
 import { dist, clamp, lerp, rand, gap, easeOut } from './utils.js';
 
 const TEAM_TEXT = ['#bfe0ff', '#ffc4c4'];
@@ -19,8 +19,9 @@ export function createMatch(levelIdx, H) {
     castles: [BLUE, RED].map(team => ({ team, hp: CASTLE.hp, maxHp: CASTLE.hp, flash: 0 })),
     teams: [newTeam(), newTeam()],
     animals: [],
-    hunters: [], // walkers that push the build line forward
-    htowers: [], // static hunter towers
+    respawns: [], // turn numbers at which killed animals are due back
+    tick: 0,      // turns started so far, two per round
+    htowers: [],  // hunter towers in the centre field
     lanes: [0, 1].map(() => ({ squads: [], towers: [] })),
     arrow: null, aim: null, nextId: 1, timers: [], undo: [], wait: {},
     tutorial: levelIdx === 0, // show the drag demo until the first shot of a Noob match
@@ -31,7 +32,7 @@ export function createMatch(levelIdx, H) {
 
 // The parts of a match that playing a card can change. Undo restores exactly these.
 const snapshot = m => JSON.parse(JSON.stringify({
-  teams: m.teams, hunters: m.hunters, htowers: m.htowers, lanes: m.lanes, nextId: m.nextId,
+  teams: m.teams, htowers: m.htowers, lanes: m.lanes, nextId: m.nextId,
 }));
 
 export class Game {
@@ -95,7 +96,8 @@ export class Game {
   async turn(m, team) {
     const mine = team === BLUE;
 
-    // Start of turn: new animals arrive and a fresh hand is dealt.
+    // Start of turn: animals killed a while ago return and the hand is dealt again.
+    m.tick++;
     respawnAnimals(m);
     dealHand(m.teams[team]);
 
@@ -203,7 +205,7 @@ export class Game {
     m.wait.end();
   }
 
-  // Shared by the player and the AI. Troops and hunters take one free step as they land.
+  // Shared by the player and the AI. Troops take one free step as they land.
   play(m, team, idx, target) {
     const id = m.teams[team].hand[idx];
     const ent = playCard(m, team, idx, target);
@@ -215,8 +217,6 @@ export class Game {
       p = m.board.lanePoint(ent.lane, ent.slot);
     } else if (CARDS[id].zone === 'checkpoint') {
       p = m.board.lanePoint(ent.lane, ent.slot);
-    } else if (id === 'hunter') {
-      this.stepHunter(m, ent);
     }
     this.fx.ring(p.x, p.y, TEAM_RING[team], 8, 44, 0.4);
     return true;
@@ -265,9 +265,8 @@ export class Game {
         o.ref.ky += ar.dy * 70;
         this.hurtAnimal(m, o.ref, ARROW.damage, ar.team);
         break;
-      case 'hunter':
       case 'htower':
-        this.hurtCenter(m, o.ref, ARROW.damage);
+        this.hurtHtower(m, o.ref, ARROW.damage);
         break;
       case 'castle':
         this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
@@ -291,6 +290,7 @@ export class Game {
     this.fx.puff(a.x, a.y, '#ff8fa0', 5, 60);
     if (a.hp <= 0) {
       m.animals.splice(m.animals.indexOf(a), 1);
+      queueRespawn(m);
       this.fx.puff(a.x, a.y, '#ffffff', 12, 95);
       this.sfx.play('die');
     } else {
@@ -354,18 +354,14 @@ export class Game {
     this.sfx.play('thud');
   }
 
-  // A hunter or hunter tower in the centre field.
-  hurtCenter(m, e, dmg) {
-    e.hp -= dmg;
-    e.flash = 0.2;
-    this.fx.text(e.x, e.y - 40, '-' + dmg, TEAM_TEXT[e.team], false, 13);
+  hurtHtower(m, t, dmg) {
+    t.hp -= dmg;
+    t.flash = 0.2;
+    this.fx.text(t.x, t.y - 40, '-' + dmg, TEAM_TEXT[t.team], false, 13);
     this.sfx.play('thud');
-    if (e.hp > 0) return;
-    for (const list of [m.hunters, m.htowers]) {
-      const i = list.indexOf(e);
-      if (i >= 0) list.splice(i, 1);
-    }
-    this.fx.puff(e.x, e.y - 8, '#e9e2cf', 12, 90);
+    if (t.hp > 0) return;
+    m.htowers.splice(m.htowers.indexOf(t), 1);
+    this.fx.puff(t.x, t.y - 8, '#e9e2cf', 12, 90);
   }
 
   // ---------------------------------------------------------------- unit actions
@@ -456,20 +452,20 @@ export class Game {
     const b = m.board, enemy = 1 - team, home = b.castles[team], goal = b.castles[enemy];
     const point = e => ({ x: e.x, y: e.y, h: 0, r: 0 });
 
-    // Castle guards pick off anything of the enemy's that gets close.
+    // Castle guards pick off enemy towers built too close.
     let intruder = null, reach = CASTLE.guardCenterRange;
-    for (const e of [...m.hunters, ...m.htowers]) {
+    for (const e of m.htowers) {
       const d = gap(point(e), castleShape(home));
       if (e.team === enemy && d < reach) { reach = d; intruder = e; }
     }
     if (intruder) {
       this.fx.shot(home.x, home.drawY - 40, intruder.x, intruder.y - 10, { arc: 22 });
       this.sfx.play('bow');
-      this.hurtCenter(m, intruder, CASTLE.guardCenterDmg);
+      this.hurtHtower(m, intruder, CASTLE.guardCenterDmg);
       await this.sleep(m, 0.14);
     }
 
-    // Hunter towers: enemy hunters first, then enemy towers, then game, then the castle.
+    // Hunter towers: an enemy tower in reach first, then game, then the castle.
     for (const t of m.htowers.filter(e => e.team === team)) {
       if (t.hp <= 0 || m.over) continue;
       const closest = (list, pad) => {
@@ -480,12 +476,11 @@ export class Game {
         }
         return best;
       };
-      const foe = closest(m.hunters.filter(e => e.team === enemy), () => 0)
-        || closest(m.htowers.filter(e => e.team === enemy), () => 0);
+      const foe = closest(m.htowers.filter(e => e.team === enemy), () => 0);
       const prey = foe ? null : closest(m.animals, a => a.r);
       if (foe) {
         this.hunterShot(t, foe.x, foe.y - 8);
-        this.hurtCenter(m, foe, HTOWER.atkUnit);
+        this.hurtHtower(m, foe, HTOWER.atkUnit);
       } else if (prey) {
         this.hunterShot(t, prey.x, prey.y);
         this.hurtAnimal(m, prey, HTOWER.atkAnimal, team);
@@ -497,34 +492,11 @@ export class Game {
       }
       await this.sleep(m, 0.14);
     }
-
-    // Hunters just keep walking, dragging the build line with them.
-    for (const h of m.hunters.filter(e => e.team === team)) {
-      if (h.hp > 0 && this.stepHunter(m, h)) await this.sleep(m, 0.06);
-    }
   }
 
   hunterShot(t, x, y) {
     this.fx.shot(t.x, t.y - 26, x, y, { arc: 10, dur: 0.16 });
     this.sfx.play('bow');
-  }
-
-  // One step up the field, fanning out to the sides if something is in the way.
-  stepHunter(m, h) {
-    const dirY = h.team === BLUE ? -1 : 1;
-    const room = (centerLimit(m, h.team) - h.y) * dirY;
-    if (room < 8) return false;
-    const base = dirY < 0 ? -Math.PI / 2 : Math.PI / 2;
-    for (const step of [Math.min(HUNTER.step, room), HUNTER.step / 2]) {
-      for (const turn of [0, 0.45, -0.45, 0.9, -0.9]) {
-        const x = h.x + Math.cos(base + turn) * step, y = h.y + Math.sin(base + turn) * step;
-        if (!centerFits(m, 'hunter', x, y, h)) continue;
-        h.x = x;
-        h.y = y;
-        return true;
-      }
-    }
-    return false;
   }
 
   // ---------------------------------------------------------------- per-frame
@@ -560,14 +532,9 @@ export class Game {
         t.born = Math.min(1, t.born + dt * 4);
       }
     }
-    for (const list of [m.hunters, m.htowers]) {
-      for (const e of list) {
-        const k = Math.min(1, dt * 7);
-        e.vx += (e.x - e.vx) * k;
-        e.vy += (e.y - e.vy) * k;
-        e.flash = Math.max(0, e.flash - dt);
-        e.born = Math.min(1, e.born + dt * 4);
-      }
+    for (const t of m.htowers) {
+      t.flash = Math.max(0, t.flash - dt);
+      t.born = Math.min(1, t.born + dt * 4);
     }
     for (const c of m.castles) c.flash = Math.max(0, c.flash - dt);
 
@@ -583,18 +550,11 @@ export class Game {
     const old = m.board, nb = makeBoard(H);
     const mapY = y => nb.cy + (y - old.cy) * (nb.b / old.b);
     const remap = list => {
-      for (const e of list) {
-        e.y = mapY(e.y);
-        if (e.vy !== undefined) e.vy = mapY(e.vy);
-      }
+      for (const e of list) e.y = mapY(e.y);
     };
     remap(m.animals);
-    remap(m.hunters);
     remap(m.htowers);
-    for (const snap of m.undo) {
-      remap(snap.hunters);
-      remap(snap.htowers);
-    }
+    for (const snap of m.undo) remap(snap.htowers);
     if (m.arrow) {
       m.arrow.y = mapY(m.arrow.y);
       m.arrow.trail = [];

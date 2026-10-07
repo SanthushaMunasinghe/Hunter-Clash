@@ -291,8 +291,7 @@ export class Renderer {
           sq.team, sq.kind, count, sq.hp / sq.maxHp, sq.flash, t, sq.walking, unitScale));
       }
     });
-    for (const h of m.htowers) add(h.vy + 6, () => S.drawHtower(ctx, h.vx, h.vy, h.team, h.hp / h.maxHp, h.flash, h.born));
-    for (const h of m.hunters) add(h.vy + 4, () => S.drawHunter(ctx, h.vx, h.vy, h.team, h.hp / h.maxHp, h.flash, h.born, t));
+    for (const h of m.htowers) add(h.y + 6, () => S.drawHtower(ctx, h.x, h.y, h.team, h.hp / h.maxHp, h.flash, h.born));
     for (const a of m.animals) add(a.y + a.r * 0.6, () => S.drawAnimal(ctx, a, t));
     for (const c of b.castles) {
       const st = m.castles[c.team];
@@ -520,21 +519,17 @@ export class Renderer {
     const b = m.board, zone = CARDS[d.id].zone;
     if (zone === 'center') {
       ctx.globalAlpha = tg.valid ? 0.9 : 0.45;
-      if (d.id === 'htower') {
-        if (tg.valid) {
-          ctx.fillStyle = 'rgba(255,255,255,0.12)';
-          ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([6, 6]);
-          S.circle(ctx, tg.x, tg.y, HTOWER.range);
-          ctx.fill();
-          ctx.stroke();
-          ctx.setLineDash([]);
-        }
-        S.drawHtower(ctx, tg.x, tg.y, BLUE, 1, 0, 1, false);
-      } else {
-        S.drawHunter(ctx, tg.x, tg.y, BLUE, 1, 0, 1, t, false);
+      if (tg.valid) {
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 6]);
+        S.circle(ctx, tg.x, tg.y, HTOWER.range);
+        ctx.fill();
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
+      S.drawHtower(ctx, tg.x, tg.y, BLUE, 1, 0, 1, false);
       ctx.globalAlpha = 1;
       if (!tg.valid) {
         ctx.strokeStyle = '#ff4d4d';

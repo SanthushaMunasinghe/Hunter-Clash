@@ -1,4 +1,4 @@
-import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, HTOWER, HUNTER, CENTER_ZONE } from './config.js';
+import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, HTOWER, CENTER_ZONE } from './config.js';
 import { gap } from './utils.js';
 
 // Who may stand, move and build where. Pure functions over match state.
@@ -159,43 +159,42 @@ export function laneStep(lane, team) {
 
 // ------------------------------------------------------------------ centre field
 
-export const hunterShape = (x, y) => ({ x, y, h: 0, r: HUNTER.r });
 export const htowerShape = (x, y) => ({ x, y, h: 0, r: HTOWER.r });
 export const castleShape = c => ({ x: c.x, y: c.y, h: CASTLE.halfLen, r: CASTLE.r });
 
-// How far up the field a team's hunters may ever walk or build.
+// How far up the field a team may ever build.
 export function centerLimit(m, team) {
   const { FT, FB } = m.board, fh = FB - FT;
   return team === BLUE ? FT + fh * CENTER_ZONE.limit : FB - fh * CENTER_ZONE.limit;
 }
 
-// Y of the edge of a team's build zone. Blue builds below it, red above it. It follows
-// the team's forward-most hunter or hunter tower, and falls back when they die.
+// Y of the edge of a team's build zone. Blue builds below it, red above it. Holding a
+// checkpoint on either road opens the field up level with it, and a hunter tower keeps
+// the ground out to itself even after the checkpoint is lost.
 export function centerLine(m, team) {
-  const { FT, FB } = m.board, fh = FB - FT, limit = centerLimit(m, team);
-  if (team === BLUE) {
-    let y = FB - fh * CENTER_ZONE.depth;
-    for (const list of [m.hunters, m.htowers]) for (const e of list) if (e.team === BLUE) y = Math.min(y, e.y);
-    return Math.max(y, limit);
-  }
-  let y = FT + fh * CENTER_ZONE.depth;
-  for (const list of [m.hunters, m.htowers]) for (const e of list) if (e.team === RED) y = Math.max(y, e.y);
-  return Math.min(y, limit);
+  const b = m.board, fh = b.FB - b.FT;
+  const ys = [team === BLUE ? b.FB - fh * CENTER_ZONE.depth : b.FT + fh * CENTER_ZONE.depth];
+  m.lanes.forEach((lane, li) => {
+    for (const slot of CHECKPOINTS) {
+      if (cpOwner(lane, slot) === team) ys.push(b.lanePoint(li, slot).y);
+    }
+  });
+  for (const t of m.htowers) if (t.team === team) ys.push(t.y);
+  const limit = centerLimit(m, team);
+  return team === BLUE ? Math.max(Math.min(...ys), limit) : Math.min(Math.max(...ys), limit);
 }
 
-// Whether a hunter or hunter tower physically fits at (x, y). `skip` is left out of the
-// overlap test (a hunter checking its own next step).
-export function centerFits(m, kind, x, y, skip = null) {
-  const b = m.board, me = kind === 'htower' ? htowerShape(x, y) : hunterShape(x, y);
+// Whether a hunter tower physically fits at (x, y).
+export function centerFits(m, x, y) {
+  const b = m.board, me = htowerShape(x, y);
   if (b.fieldG(x, y, me.r + 8) >= 1) return false;
   for (const c of b.castles) if (gap(me, castleShape(c)) < 12) return false;
-  for (const h of m.hunters) if (h !== skip && gap(me, hunterShape(h.x, h.y)) < 4) return false;
-  for (const t of m.htowers) if (t !== skip && gap(me, htowerShape(t.x, t.y)) < 4) return false;
+  for (const t of m.htowers) if (gap(me, htowerShape(t.x, t.y)) < 4) return false;
   return true;
 }
 
-export function centerValid(m, team, kind, x, y) {
+export function centerValid(m, team, x, y) {
   const line = centerLine(m, team);
   if (team === BLUE ? y < line - 0.5 : y > line + 0.5) return false;
-  return centerFits(m, kind, x, y);
+  return centerFits(m, x, y);
 }

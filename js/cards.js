@@ -1,26 +1,16 @@
-import { CARDS, CARD_ORDER, CARD_REST, HAND_SIZE, START_MEAT, UNITS, HTOWER, HUNTER } from './config.js';
+import { CARDS, CARD_ORDER, HAND_SIZE, START_MEAT, UNITS, HTOWER } from './config.js';
 import { dist } from './utils.js';
 import { deploySlots, towerSpots, centerLine, centerValid, dirOf } from './rules.js';
 
 const SNAP = 64; // how close a lane card must be dropped to a slot to snap onto it
 
 export function newTeam() {
-  return { meat: START_MEAT, hand: new Array(HAND_SIZE).fill(null), rested: null };
+  return { meat: START_MEAT, hand: new Array(HAND_SIZE).fill(null) };
 }
 
-// A fresh hand of four different cards. One type sits out each turn (never the same one
-// twice running), and the very first hand always has both troop cards.
+// Every card comes back at the start of the turn. Playing one empties its slot until then.
 export function dealHand(T) {
-  const first = T.rested === null;
-  const pool = CARD_ORDER.filter(id => id !== T.rested && !(first && CARDS[id].zone === 'lane'));
-  let roll = Math.random() * pool.reduce((sum, id) => sum + CARD_REST[id], 0);
-  let out = pool[pool.length - 1];
-  for (const id of pool) {
-    roll -= CARD_REST[id];
-    if (roll <= 0) { out = id; break; }
-  }
-  T.rested = out;
-  T.hand = CARD_ORDER.filter(id => id !== out);
+  T.hand = [...CARD_ORDER];
 }
 
 // Why a card can't be played right now: 'meat', 'spot' or null if it can.
@@ -47,7 +37,7 @@ export function dropOptions(m, team, id) {
 // Resolves a drop at (x, y) to a concrete target for playCard.
 export function dropTarget(m, team, id, x, y, options) {
   if (CARDS[id].zone === 'center') {
-    return { valid: centerValid(m, team, id, x, y), x, y };
+    return { valid: centerValid(m, team, x, y), x, y };
   }
   let best = null, bd = SNAP;
   for (const s of options.spots) {
@@ -81,13 +71,9 @@ export function playCard(m, team, idx, target) {
     };
     m.lanes[target.lane].towers.push(ent);
   } else {
-    if (!centerValid(m, team, id, target.x, target.y)) return null;
-    const hp = id === 'htower' ? HTOWER.hp : HUNTER.hp;
-    ent = {
-      id: m.nextId++, team, x: target.x, y: target.y, vx: target.x, vy: target.y,
-      hp, maxHp: hp, flash: 0, born: 0,
-    };
-    (id === 'htower' ? m.htowers : m.hunters).push(ent);
+    if (!centerValid(m, team, target.x, target.y)) return null;
+    ent = { id: m.nextId++, team, x: target.x, y: target.y, hp: HTOWER.hp, maxHp: HTOWER.hp, flash: 0, born: 0 };
+    m.htowers.push(ent);
   }
   T.meat -= card.cost;
   T.hand[idx] = null;

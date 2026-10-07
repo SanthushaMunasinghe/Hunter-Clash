@@ -36,10 +36,8 @@ export const UNITS = {
   tower: { hp: 30, atk: 4, range: 2 },
 };
 
-// Hunter towers stay put and shoot whatever wanders close.
-export const HTOWER = { hp: 40, r: 16, range: 95, atkAnimal: 10, atkUnit: 10, atkCastle: 2 };
-// Hunters only walk forward, pushing the line you may build up to.
-export const HUNTER = { hp: 20, r: 11, step: 64 };
+// Hunter towers stay put and shoot whatever wanders close. Good hunters, poor fighters.
+export const HTOWER = { hp: 40, r: 16, range: 95, atkAnimal: 25, atkUnit: 10, atkCastle: 2 };
 
 export const ANIMALS = {
   sheep: { hp: 10, r: 14, speed: 11, weight: 5 },
@@ -48,25 +46,26 @@ export const ANIMALS = {
   bear: { hp: 80, r: 23, speed: 6, weight: 2 },
   dino: { hp: 160, r: 27, speed: 4, weight: 1 },
 };
-export const MIN_ANIMALS = 6;
-export const MAX_ANIMALS = 14;
+// The herd only ever refills what was killed: each kill comes back `delay` rounds later,
+// at most `perTurn` at a time. Below MIN_ANIMALS the wait is skipped.
+export const MIN_ANIMALS = 4;
+export const RESPAWN = { delay: 3, perTurn: 2 };
 
 export const CARDS = {
   melee: { name: 'Warriors', cost: 40, zone: 'lane' },
   archer: { name: 'Archers', cost: 40, zone: 'lane' },
   htower: { name: 'Hunter Tower', cost: 50, zone: 'center' },
-  hunter: { name: 'Hunter', cost: 20, zone: 'center' },
   tower: { name: 'Guard Tower', cost: 30, zone: 'checkpoint' },
 };
-// Hand order on screen. Each turn shows 4 of the 5; the weight is how often a card sits out.
-export const CARD_ORDER = ['melee', 'archer', 'htower', 'hunter', 'tower'];
-export const CARD_REST = { melee: 1, archer: 2, htower: 3, hunter: 3, tower: 3 };
-export const HAND_SIZE = 4;
+// The hand, in screen order. Every card comes back each turn and can be played once.
+export const CARD_ORDER = ['melee', 'archer', 'htower', 'tower'];
+export const HAND_SIZE = CARD_ORDER.length;
 export const START_MEAT = 20;
 
-// Centre build zone: starts `depth` of the field deep from your base and follows your
-// forward-most hunter or hunter tower, but never closer than `limit` to the enemy end.
-export const CENTER_ZONE = { depth: 0.3, limit: 0.15 };
+// Centre build zone: a strip `depth` of the field deep by your base to start with. It
+// grows level with the furthest checkpoint you hold on either road, and stays as far out
+// as your furthest hunter tower. Never closer than `limit` to the enemy end.
+export const CENTER_ZONE = { depth: 0.18, limit: 0.15 };
 
 // A match never runs long: once this many turns are up, the healthier castle wins.
 // Level castles go to whoever holds more checkpoints, then more meat; if even that is
@@ -79,7 +78,7 @@ export const TURN_LIMIT = 25;
 // lookahead: rounds of lane fighting it plays out in its head before placing troops.
 // maxCards / skip: how many cards it bothers to play, and how often it forgets to.
 export const LEVELS = [
-  { name: 'NOOB', blurb: 'Still learning which end of the arrow is sharp.', aimSamples: 1, aimError: 0.3, smart: 0, lookahead: 0, maxCards: 1, skip: 0.65 },
+  { name: 'NOOB', blurb: 'Still learning which end of the arrow is sharp.', aimSamples: 2, aimError: 0.22, smart: 0.15, lookahead: 0, maxCards: 1, skip: 0.35 },
   { name: 'RECRUIT', blurb: 'Knows the rules, makes plenty of mistakes.', aimSamples: 3, aimError: 0.14, smart: 0.3, lookahead: 0, maxCards: 1, skip: 0.2 },
   { name: 'VETERAN', blurb: 'A fair fight. Think before you spend.', aimSamples: 10, aimError: 0.07, smart: 0.6, lookahead: 0, maxCards: 2, skip: 0 },
   { name: 'ACE', blurb: 'Sharp aim and well-timed pushes.', aimSamples: 30, aimError: 0.02, smart: 0.9, lookahead: 2, maxCards: 3, skip: 0 },

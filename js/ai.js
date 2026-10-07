@@ -2,7 +2,7 @@ import { BLUE, LANE_LEN, CARDS, UNITS, HTOWER } from './config.js';
 import { simulateShot } from './arrow.js';
 import { cardBlocker } from './cards.js';
 import {
-  deploySlots, towerSpots, centerLine, centerLimit, centerValid, frontier, homeSlot, advance, laneStep,
+  deploySlots, towerSpots, centerLine, centerValid, frontier, homeSlot, advance, laneStep,
 } from './rules.js';
 import { rand, pick, lerp, dist, clamp } from './utils.js';
 
@@ -19,7 +19,7 @@ export function chooseAim(m, team, lvl) {
   for (let i = 0; i < lvl.aimSamples; i++) {
     const ang = lerp(lo, hi, (i + Math.random()) / lvl.aimSamples);
     const r = simulateShot(m, team, ang);
-    let score = r.meat + r.castle * 2 + r.hunter * 1.5 + r.htower * 0.8 + rand(2);
+    let score = r.meat + r.castle * 2 + r.htower * 0.8 + rand(2);
     if (r.castle >= foeHp) score += 1000;
     if (!best || score > best.score) best = { ang, score };
   }
@@ -33,23 +33,13 @@ function htowerSpot(m, team) {
   let best = null;
   for (let i = 0; i < 40; i++) {
     const x = b.cx + rand(-b.a + 28, b.a - 28), y = rand(y0, y1);
-    if (!centerValid(m, team, 'htower', x, y)) continue;
+    if (!centerValid(m, team, x, y)) continue;
     let n = 0;
     for (const a of m.animals) if (dist(x, y, a.x, a.y) - a.r < HTOWER.range) n++;
     for (const t of m.htowers) if (t.team === team && dist(x, y, t.x, t.y) < HTOWER.range) n -= 0.7;
     if (!best || n + rand(0.3) > best.score) best = { x, y, score: n + rand(0.3), n };
   }
   return best;
-}
-
-// Hunters start right on the line so their first step pushes it out.
-function hunterSpot(m, team) {
-  const b = m.board, line = centerLine(m, team), back = team === BLUE ? 1 : -1;
-  for (let i = 0; i < 30; i++) {
-    const x = b.cx + rand(-b.a * 0.6, b.a * 0.6), y = line + back * rand(2, 26);
-    if (centerValid(m, team, 'hunter', x, y)) return { x, y };
-  }
-  return null;
 }
 
 // Smartest free slot for a troop card, judged by where the squad stands after its free
@@ -175,11 +165,6 @@ export function chooseCard(m, team, lvl) {
       const mine = m.htowers.filter(t => t.team === team).length;
       const p = htowerSpot(m, team);
       if (p && p.n >= 1 && mine < 3) opts.push({ idx, target: p, score: 34 + p.n * 12 - mine * 14 + (m.turn <= 4 ? 12 : 0) + rand(8) });
-    } else if (id === 'hunter') {
-      const mine = m.hunters.filter(h => h.team === team).length;
-      const room = Math.abs(centerLine(m, team) - centerLimit(m, team));
-      const p = hunterSpot(m, team);
-      if (p && !mine && room > 60) opts.push({ idx, target: p, score: 30 + (m.turn <= 6 ? 8 : 0) + rand(8) });
     } else {
       const spots = towerSpots(m, team);
       if (!spots.length) return;

@@ -258,7 +258,6 @@ img { -webkit-user-drag: none; }
   border-bottom: 2px solid var(--ink);
 }
 .card.htower .name { background: #2f9c57; }
-.card.hunter .name { background: #c98a2b; }
 .card.tower .name { background: #a45bd6; }
 .card .art { height: 62px; margin-top: 2px; pointer-events: none; }
 .card .cost {

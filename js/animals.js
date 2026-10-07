@@ -1,4 +1,4 @@
-import { ANIMALS, MIN_ANIMALS, MAX_ANIMALS, HUNTER, HTOWER, CASTLE } from './config.js';
+import { ANIMALS, MIN_ANIMALS, RESPAWN, HTOWER, CASTLE } from './config.js';
 import { rand, dist, clamp, gap, TAU } from './utils.js';
 
 const LAUNCH_CLEAR = 42; // animals keep out of the mouth of each castle
@@ -20,12 +20,11 @@ function spotFree(m, x, y, r, pad) {
     if (gap(me, { x: c.x, y: c.y, h: CASTLE.halfLen, r: CASTLE.r }) < 8) return false;
   }
   for (const a of m.animals) if (dist(x, y, a.x, a.y) < r + a.r + pad) return false;
-  for (const h of m.hunters) if (dist(x, y, h.x, h.y) < r + HUNTER.r + 8) return false;
   for (const t of m.htowers) if (dist(x, y, t.x, t.y) < r + HTOWER.r + 8) return false;
   return true;
 }
 
-// Animals always arrive as a point-mirrored pair so neither side gets a better field.
+// The opening herd is laid out in point-mirrored pairs so neither side gets a better field.
 function spawnPair(m, type, spawn) {
   const b = m.board, r = ANIMALS[type].r;
   for (let tries = 0; tries < 300; tries++) {
@@ -43,7 +42,7 @@ function spawnPair(m, type, spawn) {
 export function initAnimals(m) {
   const b = m.board;
   m.animals.push(makeAnimal(m, 'dino', b.cx, b.cy));
-  for (const type of ['bear', 'bull', 'cow', 'cow', 'sheep', 'sheep', 'sheep']) spawnPair(m, type, 1);
+  for (const type of ['bear', 'bull', 'cow', 'cow', 'sheep', 'sheep']) spawnPair(m, type, 1);
 }
 
 function randomType() {
@@ -57,11 +56,36 @@ function randomType() {
   return 'sheep';
 }
 
-// Animals only ever arrive at the start of a turn: one mirrored pair while there is
-// room, and as many as it takes to keep at least MIN_ANIMALS on the field.
+function spawnOne(m, type) {
+  const b = m.board, r = ANIMALS[type].r;
+  for (let tries = 0; tries < 200; tries++) {
+    const x = b.cx + rand(-b.a, b.a), y = rand(b.FT, b.FB);
+    if (!spotFree(m, x, y, r, tries < 120 ? 16 : 4)) continue;
+    m.animals.push(makeAnimal(m, type, x, y, 0));
+    return true;
+  }
+  return false;
+}
+
+// A kill queues one replacement, due RESPAWN.delay rounds later. m.tick counts turns
+// (two per round); the half-round of slack is random so neither side always shoots first.
+export function queueRespawn(m) {
+  m.respawns.push(m.tick + RESPAWN.delay * 2 - (Math.random() < 0.5 ? 1 : 0));
+}
+
+// Called at the start of every turn. Brings back a few of the animals that have been
+// dead long enough, and never lets the field drop below MIN_ANIMALS.
 export function respawnAnimals(m) {
-  if (m.animals.length <= MAX_ANIMALS - 2) spawnPair(m, randomType(), 0);
-  for (let i = 0; i < 6 && m.animals.length < MIN_ANIMALS; i++) spawnPair(m, randomType(), 0);
+  m.respawns.sort((p, q) => p - q);
+  let spawned = 0;
+  while (m.respawns.length) {
+    const due = m.respawns[0] <= m.tick && spawned < RESPAWN.perTurn;
+    if (!due && m.animals.length >= MIN_ANIMALS) break;
+    m.respawns.shift();
+    if (spawnOne(m, randomType())) spawned++;
+  }
+  // Safety net if the queue ever falls short of the floor.
+  for (let i = 0; i < 6 && m.animals.length < MIN_ANIMALS; i++) spawnOne(m, randomType());
 }
 
 function pushOut(a, px, py, minDist) {
@@ -119,7 +143,6 @@ export function updateAnimals(m, dt) {
 
   // ...and out of anything solid.
   for (const a of list) {
-    for (const h of m.hunters) pushOut(a, h.x, h.y, a.r + HUNTER.r + 3);
     for (const t of m.htowers) pushOut(a, t.x, t.y, a.r + HTOWER.r + 3);
     for (const c of b.castles) {
       pushOut(a, clamp(a.x, c.x - CASTLE.halfLen, c.x + CASTLE.halfLen), c.y, a.r + CASTLE.r + 4);

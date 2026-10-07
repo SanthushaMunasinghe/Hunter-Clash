@@ -5,12 +5,11 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 Each turn has two states:
 
 1. **Hunt** – drag to aim (pull back like a slingshot, or push toward the target) and release one bouncing arrow. It bounces 5 times, taking a bite of meat out of every animal it hits. When the arrow lands, your troops march a step and strike whatever they reach, towers shoot and hunters walk.
-2. **Attack** – spend meat on cards. Each turn deals 4 different cards out of 5, and each can be played once that turn. Drag one onto the board:
+2. **Attack** – spend meat on cards. There are four, and each can be played once a turn. Drag one onto the board:
    - **Warriors** – hit hard at close range and walk past friendly archers to meet the enemy head on.
    - **Archers** – stop as soon as an enemy is in range and shoot from there. Fragile.
    - **Guard Tower** – goes on a checkpoint you hold. Barely scratches anyone, but the enemy has to break it to pass.
-   - **Hunter Tower** – goes in your part of the centre field. Never moves; shoots animals and enemy hunters that come close.
-   - **Hunter** – walks up the centre field. You can build as far forward as your furthest hunter or hunter tower.
+   - **Hunter Tower** – goes in your part of the centre field. Never moves; shoots animals that wander close and banks the meat.
 
 ## Lanes
 
@@ -19,6 +18,12 @@ Each road is a row of 25 slots with 5 checkpoints, 4 open slots between neighbou
 Checkpoints belong to whoever's front line has reached them, and troops can be dropped on any free slot from your gate up to the furthest checkpoint you hold. Lose the units holding the line and the checkpoints go with them.
 
 A castle has 100 health and its own guards, who shoot whatever reaches the gate. Pushes are meant to arrive, land a hit or two and die, so keep sending waves. The hunting arrow only does 5 to a castle; the lanes decide the match.
+
+## Centre field
+
+You start with a strip by your castle to build hunter towers on. Holding a checkpoint on either road opens the field up level with that checkpoint. Once a tower stands somewhere it keeps that ground, even if the checkpoint is lost, until the tower falls.
+
+The herd is fixed at the start. Killed animals come back three rounds later, a couple at a time, so meat gets scarcer the harder both sides hunt.
 
 Matches are capped at 25 turns. If both castles are still standing, the healthier one wins (then checkpoints held, then meat).
 

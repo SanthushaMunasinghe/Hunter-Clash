@@ -657,20 +657,6 @@ export function drawSquad(ctx, x, y, nx, ny, team, kind, count, hpFrac, flash, t
   if (hpFrac !== null) hpBar(ctx, x, y + 12 * scale, 20, hpFrac, team);
 }
 
-// A lone hunter carrying the banner that marks how far you may build.
-export function drawHunter(ctx, x, y, team, hpFrac, flash, born = 1, t = 0, showHp = true) {
-  const sc = (born < 1 ? Math.max(0.01, easeOutBack(born)) : 1) * 1.7;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(sc, sc);
-  shadow(ctx, 0, 8, 9, 3.5, 0.22);
-  flag(ctx, -5, 3, 22, team, t, 0.75);
-  soldier(ctx, 0, 0, team, 'archer', 0);
-  hitFlash(ctx, 0, -2, 9, 12, flash);
-  ctx.restore();
-  if (showHp && born >= 1) hpBar(ctx, x, y + 18, 20, hpFrac, team);
-}
-
 // Pointing hand for the aiming tutorial. (x, y) is the fingertip.
 export function drawHand(ctx, x, y, pressed, alpha = 1) {
   ctx.save();
@@ -755,10 +741,6 @@ export function cardIcon(id) {
     g.translate(54, 50);
     g.scale(1.45, 1.45);
     drawHtower(g, 0, 0, BLUE, 1, 0, 1, false);
-  } else if (id === 'hunter') {
-    g.translate(52, 50);
-    g.scale(1.5, 1.5);
-    drawHunter(g, 0, 0, BLUE, 1, 0, 1, 0, false);
   } else {
     g.translate(50, 68);
     g.scale(1.05, 1.05);
