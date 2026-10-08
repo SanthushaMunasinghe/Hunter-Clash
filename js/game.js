@@ -206,7 +206,7 @@ export class Game {
       this.sfx.play('capture');
     } else if (CARDS[id].zone === 'lane') {
       const lane = m.lanes[ent.lane], from = ent.slot;
-      ent.slot = advance(lane, ent);
+      advance(lane, ent); // may push lower-ranked friends back a slot as it goes
       p = m.board.lanePoint(ent.lane, ent.slot);
       // Landing in reach of something earns a blow, once the squad has walked up to it.
       if (strikeAct(lane, ent)) {

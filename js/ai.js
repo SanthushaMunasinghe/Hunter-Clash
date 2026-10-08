@@ -41,20 +41,22 @@ const newSquad = (team, kind, slot) => {
 // step. Landing in reach of something means a free blow; landing just short of the enemy
 // hands them the first one. Archers also want a front-liner right ahead of them.
 function bestSlot(m, team, li, kind, slots) {
-  const lane = m.lanes[li], home = homeSlot(team);
+  const home = homeSlot(team);
   const toHome = slot => Math.abs(slot - home);
   let best = null;
   for (const slot of slots) {
-    const sq = newSquad(team, kind, slot);
-    sq.slot = advance(lane, sq);
-    const hit = strikeAct(lane, sq);
+    // Try it on a copy: stepping forward can push friends about.
+    const trial = JSON.parse(JSON.stringify(m.lanes[li])), sq = newSquad(team, kind, slot);
+    trial.squads.push(sq);
+    advance(trial, sq);
+    const hit = strikeAct(trial, sq);
     let foe = null, d = Infinity;
-    for (const f of lane.squads) {
+    for (const f of trial.squads) {
       const ahead = toHome(f.slot) - toHome(sq.slot);
       if (f.team !== team && ahead > 0 && ahead < d) { d = ahead; foe = f; }
     }
-    const shielded = lane.squads.some(q =>
-      q.team === team && q.kind !== 'archer' && toHome(q.slot) > toHome(sq.slot) && toHome(q.slot) - toHome(sq.slot) <= 2);
+    const shielded = trial.squads.some(q =>
+      q !== sq && q.team === team && q.kind !== 'archer' && toHome(q.slot) > toHome(sq.slot) && toHome(q.slot) - toHome(sq.slot) <= 2);
     let score = toHome(sq.slot) * 0.5;
     if (hit) score += hit.kind === 'castle' ? 16 : 10;
     else if (foe && !shielded && d <= foe.speed + foe.range) score -= kind === 'archer' ? 10 : 4;

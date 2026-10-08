@@ -75,28 +75,31 @@ export function laneTarget(lane, team, slot, range) {
   return null;
 }
 
-// Where a squad ends up after one step: up to `speed` slots forward, stopping the moment
-// an enemy comes into range. Archers therefore hold at arm's length, while warriors and
-// giants walk past friendly archers to meet the enemy head on.
+// Marching order in a column: giants lead, warriors follow, archers bring up the rear.
+const RANK = { archer: 0, melee: 1, giant: 2 };
+
+// Moves a squad one step: up to `speed` slots forward, stopping the moment an enemy comes
+// into range. A squad that outranks the friend ahead of it swaps places with them, so
+// giants and warriors work their way to the front and push the others back a slot each.
+// That costs a slot of movement like any other; nobody gets extra steps for it.
+// Mutates the lane and returns the friendly squads that were pushed back.
 export function advance(lane, s) {
-  const dir = dirOf(s.team), gate = homeSlot(1 - s.team);
-  let pos = s.slot, used = 0;
-  while (used < s.speed) {
-    if (laneTarget(lane, s.team, pos, s.range)) break;
-    let next = pos + dir, cost = 1;
-    while (s.kind !== 'archer' && next !== gate) {
-      const o = squadAt(lane, next);
-      if (!o || o.team !== s.team || o.kind !== 'archer') break;
-      next += dir;
-      cost++;
-    }
-    if (next === gate || used + cost > s.speed || squadAt(lane, next)) break;
+  const dir = dirOf(s.team), gate = homeSlot(1 - s.team), pushed = [];
+  for (let used = 0; used < s.speed; used++) {
+    if (laneTarget(lane, s.team, s.slot, s.range)) break;
+    const next = s.slot + dir;
+    if (next === gate) break;
     const tw = towerAt(lane, next);
     if (tw && tw.team !== s.team) break;
-    pos = next;
-    used += cost;
+    const other = squadAt(lane, next);
+    if (other) {
+      if (other.team !== s.team || RANK[other.kind] >= RANK[s.kind]) break;
+      other.slot = s.slot;
+      if (!pushed.includes(other)) pushed.push(other);
+    }
+    s.slot = next;
   }
-  return pos;
+  return pushed;
 }
 
 // The blow a squad would land from where it stands, as an 'attack' action, or null if
@@ -123,7 +126,7 @@ function land(lane, act) {
 // A squad that has just been dropped on the lane takes its free step and, if that brings
 // something into range, strikes it. Mutates the lane; returns the blow, if any.
 export function dropStep(lane, sq) {
-  sq.slot = advance(lane, sq);
+  advance(lane, sq);
   const act = strikeAct(lane, sq);
   if (act) land(lane, act);
   return act;
@@ -168,26 +171,31 @@ export function laneStep(lane, team) {
     hurt(lane.squads, foe, dmg);
   }
 
-  // Front squads go first so the ones behind can close up or walk past. A squad with
-  // something in range strikes where it stands. Then, if the way is clear (because it
-  // had nothing to hit, or because that blow cleared it), it steps forward and strikes
-  // again at whatever the step brought into range.
-  const squads = lane.squads.filter(q => q.team === team).sort((p, q) => dir * (q.slot - p.slot));
-  for (const sq of squads) {
-    const first = strikeAct(lane, sq);
-    if (first) {
-      acts.push(first);
-      land(lane, first);
-    }
-    const to = advance(lane, sq);
-    if (to === sq.slot) continue;
-    sq.slot = to;
-    const second = strikeAct(lane, sq);
-    if (second) {
-      acts.push(second);
-      land(lane, second);
+  const front = (p, q) => dir * (q.slot - p.slot);
+  const squads = lane.squads.filter(q => q.team === team);
+
+  // First every squad with something in reach strikes where it stands, front to back.
+  for (const sq of squads.slice().sort(front)) {
+    const act = strikeAct(lane, sq);
+    if (!act) continue;
+    acts.push(act);
+    land(lane, act);
+  }
+
+  // Then the column moves. Giants go first, then warriors, then archers, so each rank
+  // swaps its way past the ones that belong behind it and the rest close up after.
+  // A squad whose step ends with an enemy in reach strikes again.
+  for (const sq of squads.slice().sort((p, q) => RANK[q.kind] - RANK[p.kind] || front(p, q))) {
+    if (!lane.squads.includes(sq)) continue;
+    const from = sq.slot;
+    for (const o of advance(lane, sq)) acts.push({ type: 'move', by: o.id, to: o.slot });
+    if (sq.slot === from) continue;
+    const act = strikeAct(lane, sq);
+    if (act) {
+      acts.push(act);
+      land(lane, act);
     } else {
-      acts.push({ type: 'move', by: sq.id, to });
+      acts.push({ type: 'move', by: sq.id, to: sq.slot });
     }
   }
   return acts;

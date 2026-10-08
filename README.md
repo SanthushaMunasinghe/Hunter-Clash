@@ -30,7 +30,7 @@ The herd is small, about six animals. A kill comes back two rounds later.
 | **Giant** | Breaking guard towers: 2 blows | Slower and dearer than warriors, and no better in a fight |
 | **Tower** | Blocks the road. Warriors and archers together need 6 blows to break it | Giants |
 
-Nothing hits further than 2 slots, towers and castle guards included, so only the front of a column fights. Archers stop as soon as an enemy is in range; warriors and giants walk past friendly archers to meet the enemy head on. A squad strikes whenever a step ends with an enemy in reach, including the free step it takes when you place it.
+Nothing hits further than 2 slots, towers and castle guards included, so only the front of a column fights. Archers stop as soon as an enemy is in range. A column sorts itself as it marches: giants lead, warriors follow, archers bring up the rear. A giant or warrior moving up swaps places with any lower-ranked friend in its way, pushing them back a slot; that uses up its normal step, it gets no extra movement for it. A squad strikes whenever a step ends with an enemy in reach, including the free step it takes when you place it.
 
 ## Lanes
 
