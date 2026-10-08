@@ -5,10 +5,12 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 Each turn has two states:
 
 1. **Hunt** – the card panel slides away; drag in the strip under your castle to pull back, then release. Every arrow you own flies down that line, one after another. An arrow bounces off the field edge (up to 5 times) and is spent on the first animal it hits. When the volley lands, each of your squads strikes whatever is in reach, steps forward if the way is clear, and strikes again where it stops.
-2. **Spend** – seven cards, each playable once a turn. Drag one onto the board:
+2. **Spend** – each turn deals you four different cards out of six, each playable once that turn. Drag one onto the board:
    - **Warriors**, **Archers**, **Giant** – onto either road.
    - **Tower** – onto a checkpoint you hold.
-   - **+1 Arrow**, **+Damage**, **Shield** – onto your own castle.
+   - **+1 Arrow**, **+Damage** – onto your own castle.
+
+The deal is random but weighted. Early on it is mostly Warriors, Archers and the two upgrades. Giants and Towers become common from about turn 6, and an upgrade turns up less the more of it you own (+1 Arrow is rare once you have three). Any card can still appear on any turn, and a hand always has Warriors or Archers in it. The odds are the `DEAL` table in `js/config.js`.
 
 ## Hunting
 
@@ -38,7 +40,7 @@ Each road is a row of 25 slots with 5 checkpoints, 4 open slots between neighbou
 
 Checkpoints belong to whoever's front line has reached them, and troops can be dropped on any free slot from your gate up to the furthest checkpoint you hold. Lose the units holding the line and the checkpoints go with them.
 
-A castle has 100 health and its own guards, who shoot whatever reaches the gate. Pushes are meant to arrive, land a hit or two and die, so keep sending waves. An arrow that reaches the enemy castle only chips 1 off it, and a **Shield** card (10 meat) keeps arrows off your castle altogether for the enemy's next 2 hunts. The lanes decide the match.
+A castle has 100 health and its own guards, who shoot whatever reaches the gate. Pushes are meant to arrive, land a hit or two and die, so keep sending waves. An arrow that reaches the enemy castle only chips 1 off it. The lanes decide the match.
 
 Matches are capped at 25 turns. If both castles are still standing it goes on points: your castle's remaining health plus all the damage your side has dealt to enemy troops, towers and castle (the star in the HUD). So the side that did the fighting still wins. Level points go to checkpoints held, then meat.
 

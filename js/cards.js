@@ -1,5 +1,5 @@
-import { CARDS, CARD_ORDER, HAND_SIZE, START_MEAT, UNITS, ARROW, UPGRADE, SHIELD_TURNS } from './config.js';
-import { dist } from './utils.js';
+import { CARDS, CARD_ORDER, HAND_SIZE, DEAL, START_MEAT, UNITS, ARROW, UPGRADE } from './config.js';
+import { dist, clamp, lerp } from './utils.js';
 import { deploySlots, towerSpots, dirOf } from './rules.js';
 
 const SNAP = 64;       // how close a lane card must be dropped to a slot to snap onto it
@@ -11,15 +11,41 @@ export function newTeam() {
     meat: START_MEAT, hand: new Array(HAND_SIZE).fill(null),
     arrows: 1, damage: ARROW.damage, bought: { arrow: 0, damage: 0 },
     shots: 0, hunted: 0, // arrows loosed and meat they brought in, over the whole match
-    shield: 0,           // enemy hunts the castle is still shielded from
     dealt: 0,            // damage done to enemy troops, towers and castle; counts at time-up
     dealtCastle: 0,      // the part of that done to the castle
   };
 }
 
-// Every card comes back at the start of the turn. Playing one empties its slot until then.
-export function dealHand(T) {
-  T.hand = [...CARD_ORDER];
+// The odds of each card being dealt to `team` right now. See DEAL in config.js.
+export function dealWeights(m, team) {
+  const T = m.teams[team], last = arr => arr[arr.length - 1];
+  const under = clamp((m.turn - DEAL.ramp[0]) / (DEAL.ramp[1] - DEAL.ramp[0]), 0, 1);
+  return {
+    melee: DEAL.melee,
+    archer: DEAL.archer,
+    arrow: DEAL.arrow[T.arrows - 1] ?? last(DEAL.arrow),
+    damage: DEAL.damage[T.bought.damage] ?? last(DEAL.damage),
+    giant: lerp(DEAL.giant[0], DEAL.giant[1], under),
+    tower: lerp(DEAL.tower[0], DEAL.tower[1], under) * (towerSpots(m, team).length ? 1 : DEAL.noCheckpoint),
+  };
+}
+
+// Deals a fresh hand: HAND_SIZE different cards drawn by weight. A hand always has
+// warriors or archers in it, so there is never a turn with no basic troops to send.
+// Playing a card empties its slot until the next deal.
+export function dealHand(m, team) {
+  const weights = dealWeights(m, team);
+  let hand;
+  do {
+    const pool = [...CARD_ORDER];
+    hand = [];
+    while (hand.length < HAND_SIZE) {
+      let roll = Math.random() * pool.reduce((sum, id) => sum + weights[id], 0), k = 0;
+      while (k < pool.length - 1 && (roll -= weights[pool[k]]) > 0) k++;
+      hand.push(pool.splice(k, 1)[0]);
+    }
+  } while (!hand.includes('melee') && !hand.includes('archer'));
+  m.teams[team].hand = CARD_ORDER.filter(id => hand.includes(id));
 }
 
 // Upgrades get dearer each time they are bought.
@@ -94,10 +120,9 @@ export function playCard(m, team, idx, target) {
     };
     m.lanes[target.lane].towers.push(ent);
   } else {
-    if (id === 'shield') T.shield = SHIELD_TURNS;
-    else if (id === 'arrow') T.arrows++;
+    if (id === 'arrow') T.arrows++;
     else T.damage += UPGRADE.damage;
-    if (id in T.bought) T.bought[id]++;
+    T.bought[id]++;
     ent = { upgrade: id };
   }
   T.meat -= cost;

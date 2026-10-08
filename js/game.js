@@ -1,5 +1,5 @@
 import {
-  BLUE, RED, CHECKPOINTS, CASTLE, ARROW, CARDS, UPGRADE, SHIELD_TURNS, LEVELS, TURN_LIMIT, POINTS,
+  BLUE, RED, CHECKPOINTS, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT, POINTS,
 } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
@@ -98,7 +98,7 @@ export class Game {
     m.tick++;
     const fresh = respawnAnimals(m);
     if (fresh.length) this.emit('toast', 'New prey: ' + fresh.map(k => k[0].toUpperCase() + k.slice(1)).join(' and '));
-    dealHand(m.teams[team]);
+    dealHand(m, team);
 
     // Hunt: one volley, every arrow the team owns down the same line.
     m.phase = 'aim';
@@ -119,9 +119,6 @@ export class Game {
     m.phase = 'fly';
     await this.fire(m, team, angle);
     if (m.over) return;
-    // That was one of the hunts the other side's shield, if it has one up, was good for.
-    const foe = m.teams[1 - team];
-    if (foe.shield > 0) foe.shield--;
     await this.sleep(m, 0.2);
 
     // Units on the board attack or step forward.
@@ -205,8 +202,7 @@ export class Game {
     let p;
     if (ent.upgrade) {
       p = basePoint(m, team);
-      const what = { arrow: '+1 ARROW', damage: `+${UPGRADE.damage} DAMAGE`, shield: `SHIELD ${SHIELD_TURNS} TURNS` }[id];
-      this.fx.text(p.x, p.y - 30, what, '#ffcf3f', false, 17);
+      this.fx.text(p.x, p.y - 30, id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, '#ffcf3f', false, 17);
       this.sfx.play('capture');
     } else if (CARDS[id].zone === 'lane') {
       const lane = m.lanes[ent.lane], from = ent.slot;
@@ -289,13 +285,7 @@ export class Game {
       return 'stop';
     }
     if (o.kind === 'castle') {
-      if (m.teams[1 - ar.team].shield > 0) {
-        this.fx.ring(ar.x, ar.y, TEAM_RING[1 - ar.team], 6, 30, 0.35);
-        this.fx.text(ar.x, ar.y - 16, 'BLOCKED', TEAM_TEXT[1 - ar.team], false, 13);
-        this.sfx.play('bounce');
-      } else {
-        this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
-      }
+      this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
       return 'stop';
     }
     this.sfx.play('bounce');

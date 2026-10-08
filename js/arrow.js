@@ -101,7 +101,7 @@ function dryArrow(m, team, angle, obs, damage, delay, maxContacts, points) {
       return 'stop';
     }
     if (o.kind === 'castle') {
-      if (!m.teams[1 - team].shield) res.castle += ARROW.castleDamage;
+      res.castle += ARROW.castleDamage;
       return 'stop';
     }
   };

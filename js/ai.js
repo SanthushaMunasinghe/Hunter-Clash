@@ -164,13 +164,6 @@ export function chooseCard(m, team, lvl) {
   T.hand.forEach((id, idx) => {
     if (!id) return;
     const zone = CARDS[id].zone;
-    if (id === 'shield') {
-      // Worth it when they have a quiver to empty at us and time or health is short.
-      const foe = m.teams[1 - team], frail = m.castles[team].hp <= 15;
-      const score = 6 + foe.arrows * 5 + (TURN_LIMIT - m.turn <= 5 ? 12 : 0) + (frail ? 25 : 0) + rand(6);
-      if (!T.shield && (foe.arrows >= 3 || frail) && !cardBlocker(m, team, id)) opts.push({ idx, target: basePoint(m, team), score });
-      return;
-    }
     if (zone === 'base') {
       const score = upgradeScore(id), short = cardCost(T, id) - T.meat;
       if (short <= 0) opts.push({ idx, target: basePoint(m, team), score });

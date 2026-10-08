@@ -74,14 +74,26 @@ export const CARDS = {
   tower: { name: 'Tower', cost: 30, zone: 'checkpoint' },
   arrow: { name: '+1 Arrow', cost: 40, step: 30, zone: 'base' },
   damage: { name: '+Damage', cost: 25, step: 20, zone: 'base' },
-  shield: { name: 'Shield', cost: 10, zone: 'base' },
 };
-// The hand, in screen order. Every card comes back each turn and can be played once.
-export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage', 'shield'];
-export const HAND_SIZE = CARD_ORDER.length;
+// All the cards, in the order they are laid out when dealt.
+export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage'];
+// Each turn deals HAND_SIZE different cards at random; each can be played once that turn.
+export const HAND_SIZE = 4;
+// How likely each card is to be dealt. Any card can turn up on any turn, but the odds
+// follow the match: upgrades and basic troops early, giants and towers once it is under
+// way, and upgrades fading the more of them you already own.
+export const DEAL = {
+  melee: 10,
+  archer: 8,
+  arrow: [9, 5, 1, 0.6],    // by arrows owned: 1, 2, 3, 4 or more
+  damage: [8, 5, 2.5, 1],   // by +Damage cards bought: 0, 1, 2, 3 or more
+  giant: [1, 6],            // on the first turns -> once the match is under way
+  tower: [1, 5],
+  ramp: [2, 6],             // giant and tower odds grow between these turns
+  noCheckpoint: 0.4,        // towers are dealt less while you hold no checkpoint to put one on
+};
 export const START_MEAT = 15;
 export const UPGRADE = { damage: 2 }; // hunting damage added per +Damage card
-export const SHIELD_TURNS = 2;       // enemy hunts a Shield card keeps arrows off your castle for
 
 // A match never runs long. If both castles stand once this many turns are up, it goes
 // on points: your castle's remaining health plus all the damage your side has dealt to
