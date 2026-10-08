@@ -1,16 +1,15 @@
-import { BLUE, LANE_LEN, CARDS, UNITS, HTOWER } from './config.js';
-import { simulateShot } from './arrow.js';
-import { cardBlocker } from './cards.js';
-import {
-  deploySlots, towerSpots, centerLine, centerValid, frontier, homeSlot, advance, laneStep,
-} from './rules.js';
-import { rand, pick, lerp, dist, clamp } from './utils.js';
+import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT } from './config.js';
+import { simulateVolley } from './arrow.js';
+import { cardBlocker, cardCost, basePoint } from './cards.js';
+import { deploySlots, towerSpots, frontier, homeSlot, advance, laneStep } from './rules.js';
+import { rand, pick, lerp, clamp } from './utils.js';
 
 // The computer player. Written for either team so matches can be simulated AI vs AI.
 
 const MIN_ELEV = 0.16;
 
-// Try a spread of angles and keep the most rewarding one, then wobble it by the level's error.
+// Try a spread of angles and keep the one whose volley brings in the most, then wobble
+// it by the level's error. Better levels lead moving animals.
 export function chooseAim(m, team, lvl) {
   const lo = team === BLUE ? -Math.PI + MIN_ELEV : MIN_ELEV;
   const hi = team === BLUE ? -MIN_ELEV : Math.PI - MIN_ELEV;
@@ -18,48 +17,37 @@ export function chooseAim(m, team, lvl) {
   let best = null;
   for (let i = 0; i < lvl.aimSamples; i++) {
     const ang = lerp(lo, hi, (i + Math.random()) / lvl.aimSamples);
-    const r = simulateShot(m, team, ang);
-    let score = r.meat + r.castle * 2 + r.htower * 0.8 + rand(2);
+    const r = simulateVolley(m, team, ang, lvl.lead);
+    let score = r.meat + r.castle * 2 + rand(2);
     if (r.castle >= foeHp) score += 1000;
     if (!best || score > best.score) best = { ang, score };
   }
   return clamp(best.ang + rand(-lvl.aimError, lvl.aimError), lo, hi);
 }
 
-// Best place in the build zone for a hunter tower: wherever the most animals are in reach.
-function htowerSpot(m, team) {
-  const b = m.board, line = centerLine(m, team);
-  const y0 = team === BLUE ? line : b.FT + 30, y1 = team === BLUE ? b.FB - 30 : line;
-  let best = null;
-  for (let i = 0; i < 40; i++) {
-    const x = b.cx + rand(-b.a + 28, b.a - 28), y = rand(y0, y1);
-    if (!centerValid(m, team, x, y)) continue;
-    let n = 0;
-    for (const a of m.animals) if (dist(x, y, a.x, a.y) - a.r < HTOWER.range) n++;
-    for (const t of m.htowers) if (t.team === team && dist(x, y, t.x, t.y) < HTOWER.range) n -= 0.7;
-    if (!best || n + rand(0.3) > best.score) best = { x, y, score: n + rand(0.3), n };
-  }
-  return best;
-}
+const newSquad = (team, kind, slot) => {
+  const u = UNITS[kind];
+  return { id: -1, team, kind, slot, hp: u.hp, maxHp: u.hp, range: u.range, speed: u.speed };
+};
 
 // Smartest free slot for a troop card, judged by where the squad stands after its free
 // step. Squads strike as they arrive, so the aim is to land just outside the enemy's
-// reach and get the charge in first. Archers also want warriors in front of them.
+// reach and get the charge in first. Archers also want a front-liner ahead of them.
 function bestSlot(m, team, li, kind, slots) {
-  const lane = m.lanes[li], home = homeSlot(team), u = UNITS[kind];
+  const lane = m.lanes[li], home = homeSlot(team);
   const toHome = slot => Math.abs(slot - home);
   let best = null;
   for (const slot of slots) {
-    const land = advance(lane, { team, kind, slot, range: u.range, speed: u.speed });
+    const land = advance(lane, newSquad(team, kind, slot));
     let foe = null, d = Infinity;
     for (const f of lane.squads) {
       const ahead = toHome(f.slot) - toHome(land);
       if (f.team !== team && ahead > 0 && ahead < d) { d = ahead; foe = f; }
     }
     const shielded = lane.squads.some(q =>
-      q.team === team && q.kind === 'melee' && toHome(q.slot) > toHome(land) && toHome(q.slot) - toHome(land) <= 3);
+      q.team === team && q.kind !== 'archer' && toHome(q.slot) > toHome(land) && toHome(q.slot) - toHome(land) <= 3);
     let score = toHome(land) * 0.5;
-    if (foe && !shielded) score += d <= foe.speed + foe.range ? (kind === 'melee' ? -6 : -12) : 6;
+    if (foe && !shielded) score += d <= foe.speed + foe.range ? (kind === 'archer' ? -12 : -6) : 6;
     if (kind === 'archer' && shielded) score += 10;
     if (!best || score > best.score) best = { slot, score };
   }
@@ -85,7 +73,7 @@ function lookAhead(m, lanes, team, rounds) {
   if (dealt >= m.castles[foe].hp) score += 400;
   if (taken >= m.castles[team].hp) score -= 400;
   for (const lane of lanes) {
-    for (const q of lane.squads) score += (q.team === team ? 1 : -1) * (q.hp / q.maxHp) * 20;
+    for (const q of lane.squads) score += (q.team === team ? 1 : -1) * (q.hp / q.maxHp) * CARDS[q.kind].cost * 0.5;
     for (const t of lane.towers) score += (t.team === team ? 1 : -1) * (t.hp / t.maxHp) * 8;
     score += 0.4 * (Math.abs(frontier(lane, team) - homeSlot(team)) - Math.abs(frontier(lane, foe) - homeSlot(foe)));
   }
@@ -100,21 +88,21 @@ function deepLaneOptions(m, team, lvl) {
   T.hand.forEach((id, idx) => {
     if (!id || cardBlocker(m, team, id)) return;
     if (CARDS[id].zone === 'lane') {
-      const u = UNITS[id];
       for (const li of [0, 1]) {
         for (const slot of deploySlots(m, team, li)) {
-          const lanes = copy();
-          const sq = { id: -1, team, kind: id, slot, hp: u.hp, maxHp: u.hp, atk: u.atk, siege: u.siege, range: u.range, speed: u.speed };
+          const lanes = copy(), sq = newSquad(team, id, slot);
           sq.slot = advance(lanes[li], sq);
           lanes[li].squads.push(sq);
-          opts.push({ idx, target: { lane: li, slot }, score: 30 + lookAhead(m, lanes, team, lvl.lookahead) - base + rand(2) });
+          // Dearer troops have to earn their extra cost.
+          const score = 30 + lookAhead(m, lanes, team, lvl.lookahead) - base - (CARDS[id].cost - 40) * 0.5 + rand(2);
+          opts.push({ idx, target: { lane: li, slot }, score });
         }
       }
     } else if (CARDS[id].zone === 'checkpoint') {
       const u = UNITS.tower;
       for (const spot of towerSpots(m, team)) {
         const lanes = copy();
-        lanes[spot.lane].towers.push({ id: -1, team, slot: spot.slot, hp: u.hp, maxHp: u.hp, atk: u.atk, range: u.range });
+        lanes[spot.lane].towers.push({ id: -1, team, slot: spot.slot, hp: u.hp, maxHp: u.hp, range: u.range });
         opts.push({ idx, target: spot, score: 22 + lookAhead(m, lanes, team, lvl.lookahead) - base + rand(2) });
       }
     }
@@ -128,26 +116,49 @@ export function chooseCard(m, team, lvl) {
   const toHome = slot => Math.abs(slot - home);
 
   const lanes = m.lanes.map(L => {
-    let threat = 0, own = 0, melee = 0, lead = null;
+    const info = { threat: 0, own: 0, front: 0, lead: null, foes: { melee: 0, archer: 0, giant: 0 }, foeTower: false };
     for (const sq of L.squads) {
       if (sq.team === team) {
-        own += sq.hp;
-        if (sq.kind === 'melee') melee++;
+        info.own += sq.hp;
+        if (sq.kind !== 'archer') info.front++;
       } else {
-        threat += sq.hp;
-        if (!lead || toHome(sq.slot) < toHome(lead.slot)) lead = sq;
+        info.threat += sq.hp;
+        info.foes[sq.kind]++;
+        if (!info.lead || toHome(sq.slot) < toHome(info.lead.slot)) info.lead = sq;
       }
     }
+    info.foeTower = L.towers.some(t => t.team !== team);
     // urgency: how close their lead squad is to our gate, 0..1
-    return { threat, own, melee, urgency: lead ? 1 - toHome(lead.slot) / LANE_LEN : 0, front: frontier(L, team) };
+    info.urgency = info.lead ? 1 - toHome(info.lead.slot) / LANE_LEN : 0;
+    info.reach = frontier(L, team);
+    return info;
   });
+  const danger = Math.max(lanes[0].urgency, lanes[1].urgency);
 
   const careful = Math.random() < lvl.smart, deep = careful && lvl.lookahead > 0;
   const opts = deep ? deepLaneOptions(m, team, lvl) : [];
+
+  // Upgrades are judged by what they should earn back over the turns still to come,
+  // against what they cost, and are a luxury while the gate is under threat.
+  const horizon = Math.max(0, Math.min(TURN_LIMIT, 17) - m.turn);
+  const perArrow = T.shots ? T.hunted / T.shots : 28;
+  const upgradeScore = id => {
+    const gain = id === 'arrow' ? perArrow * Math.pow(0.8, T.arrows - 1) : T.arrows * perArrow * 0.3;
+    return 28 + 12 * (gain * horizon) / cardCost(T, id) + (lvl.eco ?? 0) - danger * 50 + rand(6);
+  };
+
+  let saveFor = 0; // score of an upgrade worth holding meat back for
   T.hand.forEach((id, idx) => {
-    if (!id || cardBlocker(m, team, id)) return;
+    if (!id) return;
     const zone = CARDS[id].zone;
-    if (deep && zone !== 'center') return; // already scored by the look-ahead
+    if (zone === 'base') {
+      const score = upgradeScore(id), short = cardCost(T, id) - T.meat;
+      if (short <= 0) opts.push({ idx, target: basePoint(m, team), score });
+      else if (short <= 45 && danger < 0.35) saveFor = Math.max(saveFor, score - 8);
+      return;
+    }
+    if (cardBlocker(m, team, id)) return;
+    if (deep) return; // lane plays were already scored by the look-ahead
 
     if (zone === 'lane') {
       for (const li of [0, 1]) {
@@ -157,14 +168,13 @@ export function chooseCard(m, team, lvl) {
         let score = 40 + spot.score * 0.5 + rand(10);
         if (info.threat) score += Math.max(0, info.threat - info.own) * 0.5 + info.urgency * 30;
         else score += 12; // open road to the castle
-        if (toHome(info.front) >= LANE_LEN - 5) score += 10; // keep a siege fed
-        if (id === 'archer' && !info.melee) score -= 12; // nobody to hide behind
+        if (toHome(info.reach) >= LANE_LEN - 5) score += 10; // keep a siege fed
+        // Pick the right tool: archers for giants, giants for towers, warriors for archers.
+        if (id === 'archer') score += info.foes.giant * 16 - (info.front ? 0 : 12);
+        if (id === 'giant') score += (info.foeTower ? 18 : 0) - info.foes.archer * 14 - 6;
+        if (id === 'melee') score += info.foes.archer * 6;
         opts.push({ idx, target: { lane: li, slot: spot.slot }, score, slots });
       }
-    } else if (id === 'htower') {
-      const mine = m.htowers.filter(t => t.team === team).length;
-      const p = htowerSpot(m, team);
-      if (p && p.n >= 1 && mine < 3) opts.push({ idx, target: p, score: 34 + p.n * 12 - mine * 14 + (m.turn <= 4 ? 12 : 0) + rand(8) });
     } else {
       const spots = towerSpots(m, team);
       if (!spots.length) return;
@@ -175,6 +185,9 @@ export function chooseCard(m, team, lvl) {
   });
 
   if (!opts.length) return null;
+  // A considered player will sit on its meat when an upgrade just out of reach beats
+  // anything it could buy right now.
+  if (careful && opts.every(o => o.score < saveFor)) return null;
   if (!careful) {
     // A careless pick: any card, and troops dropped on any free slot.
     const o = pick(opts);
@@ -182,5 +195,6 @@ export function chooseCard(m, team, lvl) {
     return o;
   }
   opts.sort((p, q) => q.score - p.score);
-  return opts[0];
+  // The best players keep their meat rather than spend it on a play that isn't worth much.
+  return opts[0].score >= (lvl.minScore ?? 0) ? opts[0] : null;
 }

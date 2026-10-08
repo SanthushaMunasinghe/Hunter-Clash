@@ -122,20 +122,20 @@ img { -webkit-user-drag: none; }
 .turn b { display: block; font-size: 16px; }
 .turn span { font-size: 11px; opacity: 0.95; }
 
-.enemy-meat {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  margin-top: 5px;
+/* Meat, quiver and hunting damage, hanging under each side's health bar. */
+.stats { position: absolute; top: 100%; margin-top: 5px; display: flex; gap: 4px; }
+.blue .stats { left: 0; }
+.red .stats { right: 0; }
+.stats span {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 9px 1px 3px;
+  padding: 1px 8px 1px 3px;
   font-size: 14px;
   background: rgba(31, 36, 51, 0.85);
   border-radius: 11px;
 }
-.enemy-meat img { width: 18px; height: 18px; }
+.stats img { width: 18px; height: 18px; }
 
 /* ---------------------------------------------------------------- banner + toast */
 
@@ -191,7 +191,11 @@ img { -webkit-user-drag: none; }
   gap: 8px;
   pointer-events: none;
   background: linear-gradient(rgba(16, 40, 21, 0), rgba(16, 40, 21, 0.88) 45%);
+  transition: opacity 0.2s, transform 0.2s;
 }
+/* Slid out of the way while the player aims, so drags from under the castle reach the board. */
+#panel.away { opacity: 0; transform: translateY(36px); }
+#panel.away * { pointer-events: none !important; }
 
 .panel-top { display: flex; align-items: center; gap: 8px; height: 42px; }
 
@@ -229,7 +233,7 @@ img { -webkit-user-drag: none; }
 .btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 .btn:disabled { opacity: 0.5; filter: grayscale(0.7); cursor: default; }
 
-.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; height: 116px; }
+.cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; height: 116px; }
 
 .card {
   pointer-events: auto;
@@ -251,29 +255,31 @@ img { -webkit-user-drag: none; }
   width: 100%;
   padding: 3px 0 2px;
   text-align: center;
-  font-size: 13px;
+  font-size: 11.5px;
+  white-space: nowrap;
   color: #fff;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
   background: #4a69d6;
   border-bottom: 2px solid var(--ink);
 }
-.card.htower .name { background: #2f9c57; }
+.card.giant .name { background: #2f6fd0; }
 .card.tower .name { background: #a45bd6; }
-.card .art { height: 62px; margin-top: 2px; pointer-events: none; }
+.card.arrow .name, .card.damage .name { background: #2f9c57; }
+.card .art { height: 60px; max-width: 100%; object-fit: contain; margin-top: 2px; pointer-events: none; }
 .card .cost {
   position: absolute;
   bottom: 4px;
   display: flex;
   align-items: center;
   gap: 1px;
-  padding: 1px 10px 1px 3px;
-  font-size: 16px;
+  padding: 1px 8px 1px 2px;
+  font-size: 14px;
   line-height: 1;
   color: #fff;
   background: var(--ink);
   border-radius: 11px;
 }
-.card .cost img { width: 20px; height: 20px; }
+.card .cost img { width: 17px; height: 17px; }
 .card.poor .cost b { color: #ff9a9a; }
 .card.locked { filter: brightness(0.72) saturate(0.6); cursor: default; }
 .card.off { filter: grayscale(0.85) brightness(0.8); cursor: default; }

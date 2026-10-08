@@ -1,6 +1,6 @@
-import { BLUE, RED, CARDS, LEVELS, ARROW, HAND_SIZE, TURN_LIMIT } from './config.js';
-import { cardBlocker } from './cards.js';
-import { cardIcon, meatIconURL } from './sprites.js';
+import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT } from './config.js';
+import { cardBlocker, cardCost } from './cards.js';
+import { cardIcon, meatIconURL, arrowIconURL, damageIconURL } from './sprites.js';
 
 const $ = id => document.getElementById(id);
 
@@ -22,7 +22,8 @@ export class UI {
     const meat = meatIconURL();
     this.icons = {};
     for (const id in CARDS) this.icons[id] = cardIcon(id);
-    document.querySelectorAll('img.meat-ic').forEach(img => { img.src = meat; });
+    const icons = { 'meat-ic': meat, 'arrow-ic': arrowIconURL(), 'dmg-ic': damageIconURL() };
+    for (const cls in icons) document.querySelectorAll('img.' + cls).forEach(img => { img.src = icons[cls]; });
 
     this.cardEls = [];
     for (let i = 0; i < HAND_SIZE; i++) {
@@ -184,19 +185,26 @@ export class UI {
       $('meat').animate([{ transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 180 });
     });
     this.put('emeat', m.teams[RED].meat, v => { $('emeat-num').textContent = v; });
+    // Quiver and hunting damage, for both sides.
+    for (const [team, tag] of [[BLUE, 'blue'], [RED, 'red']]) {
+      this.put('arrows' + team, m.teams[team].arrows, v => { $('arrows-' + tag).textContent = v; });
+      this.put('dmg' + team, m.teams[team].damage, v => { $('dmg-' + tag).textContent = v; });
+    }
 
     let hint = '';
     if (!live || m.phase === 'over') hint = '';
     else if (!mine) hint = 'ENEMY TURN';
     else if (m.phase === 'aim') hint = 'DRAG TO AIM<br>RELEASE TO SHOOT';
-    else if (m.phase === 'fly' && m.arrow) {
-      hint = 'BOUNCES<br>' + '●'.repeat(m.arrow.bouncesLeft) + '○'.repeat(ARROW.bounces - m.arrow.bouncesLeft);
-    } else if (m.phase === 'act') hint = 'UNITS ADVANCE';
+    else if (m.phase === 'fly') hint = 'ARROWS AWAY';
+    else if (m.phase === 'act') hint = 'UNITS ADVANCE';
     else if (m.phase === 'cards') hint = 'DRAG A CARD<br>ONTO THE BOARD';
     this.put('hint', hint, v => { $('hint').innerHTML = v; });
 
     const cardsOn = mine && m.phase === 'cards';
     this.put('end', cardsOn, v => { $('btn-end').disabled = !v; });
+    // While the player aims, the panel slides away to leave the strip under the castle
+    // free for dragging.
+    this.put('away', live && mine && m.phase === 'aim', v => { $('panel').classList.toggle('away', v); });
 
     m.teams[BLUE].hand.forEach((id, i) => {
       const el = this.cardEls[i];
@@ -205,9 +213,9 @@ export class UI {
         if (!id) return;
         el.querySelector('.name').textContent = CARDS[id].name;
         el.querySelector('.art').src = this.icons[id];
-        el.querySelector('.cost b').textContent = CARDS[id].cost;
         el.animate([{ transform: 'scale(0.75)' }, { transform: 'scale(1)' }], { duration: 200, easing: 'ease-out' });
       });
+      if (id) this.put('cost' + i, cardCost(m.teams[BLUE], id), v => { el.querySelector('.cost b').textContent = v; });
       let cls = 'card';
       if (!id) cls += ' empty';
       else {

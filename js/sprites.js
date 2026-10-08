@@ -336,7 +336,75 @@ const ANIMAL_ART = {
     }
     eyes(ctx, r, -0.84, 0.32);
   },
+
+  rabbit(ctx, r) {
+    legs(ctx, r, '#a98c6e');
+    ctx.fillStyle = '#ffffff';
+    circle(ctx, 0.75 * r, 0.3 * r, 0.24 * r);
+    ctx.fill();
+    block(ctx, -0.8 * r, -0.5 * r, 1.6 * r, 1.2 * r, 0.5 * r, '#efe2cf', '#d8c6ac');
+    for (const sx of [-1, 1]) {
+      block(ctx, sx * 0.4 * r - 0.17 * r, -1.8 * r, 0.34 * r, 1.05 * r, 0.17 * r, '#efe2cf', null);
+      ctx.fillStyle = '#f3a7b3';
+      rr(ctx, sx * 0.4 * r - 0.08 * r, -1.66 * r, 0.16 * r, 0.72 * r, 0.08 * r);
+      ctx.fill();
+    }
+    block(ctx, -0.6 * r, -0.98 * r, 1.2 * r, 0.96 * r, 0.36 * r, '#f6ecdb', null);
+    eyes(ctx, r, -0.55, 0.28);
+    ctx.fillStyle = '#f08ea0';
+    circle(ctx, 0, -0.32 * r, 0.1 * r + 0.5);
+    ctx.fill();
+  },
+
+  deer(ctx, r) {
+    deerArt(ctx, r, '#c98a52', '#a86d3b', '#dcae7c', '#f0e3c8', false);
+  },
+
+  stag(ctx, r) {
+    deerArt(ctx, r, '#e3ab3c', '#bd8724', '#f2cc72', '#fff6d4', true);
+  },
 };
+
+// Deer and its golden big brother share a body.
+function deerArt(ctx, r, body, shade, face, antler, big) {
+  legs(ctx, r, '#6b4a2e');
+  block(ctx, -0.85 * r, -0.62 * r, 1.7 * r, 1.25 * r, 0.4 * r, body, shade);
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  for (const [sx, sy] of [[-0.55, -0.35], [0.5, -0.4], [0.6, -0.05], [-0.62, 0]]) {
+    circle(ctx, sx * r, sy * r, 0.09 * r);
+    ctx.fill();
+  }
+  ctx.strokeStyle = antler;
+  ctx.lineWidth = 0.15 * r;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const sx of [-1, 1]) {
+    ctx.moveTo(sx * 0.3 * r, -1.0 * r);
+    ctx.lineTo(sx * 0.56 * r, (big ? -1.8 : -1.55) * r);
+    ctx.moveTo(sx * 0.4 * r, -1.25 * r);
+    ctx.lineTo(sx * 0.8 * r, -1.36 * r);
+    if (big) {
+      ctx.moveTo(sx * 0.5 * r, -1.55 * r);
+      ctx.lineTo(sx * 0.9 * r, -1.72 * r);
+    }
+  }
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = body;
+  ellipse(ctx, -0.62 * r, -0.74 * r, 0.22 * r, 0.12 * r);
+  ctx.fill();
+  ellipse(ctx, 0.62 * r, -0.74 * r, 0.22 * r, 0.12 * r);
+  ctx.fill();
+  block(ctx, -0.48 * r, -1.06 * r, 0.96 * r, 1.0 * r, 0.3 * r, face, null);
+  block(ctx, -0.28 * r, -0.42 * r, 0.56 * r, 0.34 * r, 0.14 * r, '#f6ead6', null);
+  ctx.fillStyle = '#2a1a14';
+  ellipse(ctx, 0, -0.34 * r, 0.12 * r, 0.08 * r);
+  ctx.fill();
+  eyes(ctx, r, -0.7, 0.24);
+}
+
+// How far above its centre each kind's art reaches, in radii, for placing the label.
+const ANIMAL_TOP = { dino: 1.5, rabbit: 1.85, deer: 1.6, stag: 1.85 };
 
 export function drawAnimal(ctx, a, t) {
   const r = a.r;
@@ -352,12 +420,12 @@ export function drawAnimal(ctx, a, t) {
   ctx.restore();
 
   if (a.spawn < 1) return;
-  const txt = String(a.hp), size = 15;
+  const txt = String(a.left), size = 15;
   ctx.font = fontStr(size);
   const w = ctx.measureText(txt).width;
-  const top = a.type === 'dino' ? r * 1.5 : r;
+  const top = r * (ANIMAL_TOP[a.type] || 1);
   meatIcon(ctx, a.x - w / 2 - 5, a.y - top - 12, 0.72);
-  label(ctx, txt, a.x + 8, a.y - top - 11, size);
+  label(ctx, txt, a.x + 8, a.y - top - 11, size, a.fast ? '#ffe27a' : '#fff');
 }
 
 // ------------------------------------------------------------------ buildings
@@ -438,53 +506,6 @@ export function drawCastle(ctx, team, x, y, hp, flash) {
   hitFlash(ctx, 0, -24, 62, 60, flash);
   ctx.restore();
   label(ctx, String(hp), x, y - 77 * CASTLE.scale, 20);
-}
-
-export function drawHtower(ctx, x, y, team, hpFrac, flash, born = 1, showHp = true) {
-  const c = TEAM_COL[team], sc = born < 1 ? Math.max(0.01, easeOutBack(born)) : 1;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(sc, sc);
-  shadow(ctx, 0, 13, 23, 8);
-  ctx.fillStyle = '#c9952a';
-  ellipse(ctx, 0, 11, 21, 9);
-  ctx.fill();
-  ctx.fillStyle = '#f4cf5a';
-  ellipse(ctx, 0, 9, 19, 7.5);
-  ctx.fill();
-  stone(ctx, -12, -14, 24, 24, 4);
-  bricks(ctx, -12, -14, 24, 24, 3);
-  ctx.fillStyle = '#3a2f2a';
-  rr(ctx, -4, 0, 8, 10, [4, 4, 0, 0]);
-  ctx.fill();
-  ctx.fillStyle = c.dark;
-  poly(ctx, [-17, -13, 17, -13, 13, -9, -13, -9]);
-  ctx.fill();
-  ctx.fillStyle = c.main;
-  poly(ctx, [-17, -14, 17, -14, 11, -32, -11, -32]);
-  ctx.fill();
-  ctx.fillStyle = c.light;
-  poly(ctx, [-11, -32, 11, -32, 8, -27, -8, -27]);
-  ctx.fill();
-  ctx.strokeStyle = c.dark;
-  ctx.lineWidth = 1.4;
-  poly(ctx, [-17, -14, 17, -14, 11, -32, -11, -32]);
-  ctx.stroke();
-  // Crossed-arrows badge.
-  ctx.fillStyle = INK;
-  circle(ctx, -15, -30, 9);
-  ctx.fill();
-  ctx.strokeStyle = c.light;
-  ctx.lineWidth = 2.2;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-19, -34); ctx.lineTo(-11, -26);
-  ctx.moveTo(-11, -34); ctx.lineTo(-19, -26);
-  ctx.stroke();
-  ctx.lineCap = 'butt';
-  hitFlash(ctx, 0, -8, 20, 24, flash);
-  ctx.restore();
-  if (showHp && born >= 1) hpBar(ctx, x, y + 22, 26, hpFrac, team);
 }
 
 export function drawTower(ctx, x, y, team, hpFrac, flash, born = 1, t = 0, showHp = true) {
@@ -635,9 +656,75 @@ function soldier(ctx, x, y, team, kind, bob) {
   ctx.restore();
 }
 
-// A rank of up to three soldiers standing across the road; (nx, ny) is the unit vector
-// across the lane. Pass hpFrac = null to leave the health bar off.
+function giant(ctx, team, bob) {
+  const c = TEAM_COL[team];
+  ctx.save();
+  ctx.translate(0, -bob);
+  ctx.fillStyle = '#3b2f2f';
+  ctx.fillRect(-8, 9, 6, 5);
+  ctx.fillRect(2, 9, 6, 5);
+  block(ctx, -11, -8, 22, 19, 6, c.main, c.dark, c.dark);
+  ctx.fillStyle = '#6f4a28';
+  ctx.fillRect(-11, 3, 22, 3.5);
+  ctx.fillStyle = '#ffd7a8';
+  circle(ctx, -13, 0, 4);
+  ctx.fill();
+  circle(ctx, 13, 0, 4);
+  ctx.fill();
+  // club
+  ctx.strokeStyle = '#7a4f26';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(14, 1);
+  ctx.lineTo(18, -15);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = '#9a6a3a';
+  ellipse(ctx, 18.5, -18, 5, 7);
+  ctx.fill();
+  ctx.strokeStyle = '#5a3a1c';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // head and horned helmet
+  ctx.fillStyle = '#ffd7a8';
+  circle(ctx, 0, -14, 7.5);
+  ctx.fill();
+  ctx.strokeStyle = SOFT_LINE;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#f6ecd6';
+  poly(ctx, [-7, -17, -13, -25, -4, -20]);
+  ctx.fill();
+  poly(ctx, [7, -17, 13, -25, 4, -20]);
+  ctx.fill();
+  ctx.fillStyle = '#8a8f9a';
+  ctx.beginPath();
+  ctx.arc(0, -15, 7.9, Math.PI, TAU);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#1d1a22';
+  circle(ctx, -2.7, -12.4, 1.1);
+  ctx.fill();
+  circle(ctx, 2.7, -12.4, 1.1);
+  ctx.fill();
+  ctx.restore();
+}
+
+// A rank of up to three soldiers standing across the road, or one giant; (nx, ny) is the
+// unit vector across the lane. Pass hpFrac = null to leave the health bar off.
 export function drawSquad(ctx, x, y, nx, ny, team, kind, count, hpFrac, flash, t, walking, scale = 1) {
+  if (kind === 'giant') {
+    shadow(ctx, x, y + 13 * scale, 16 * scale, 6 * scale, 0.22);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    giant(ctx, team, walking ? Math.abs(Math.sin(t * 8)) * 2.5 : 0);
+    ctx.restore();
+    hitFlash(ctx, x, y - 6 * scale, 18 * scale, 22 * scale, flash);
+    if (hpFrac !== null) hpBar(ctx, x, y + 17 * scale, 26, hpFrac, team);
+    return;
+  }
   const n = Math.max(1, Math.min(3, count));
   shadow(ctx, x, y + 9 * scale, (8 + n * 5) * scale, 5 * scale, 0.2);
   const spots = [];
@@ -722,29 +809,55 @@ export function drawArrow(ctx, x, y, angle, team, scale = 1) {
 
 // ------------------------------------------------------------------ DOM icons
 
-export function meatIconURL() {
+function iconURL(size, draw) {
   const c = document.createElement('canvas');
-  c.width = c.height = 72;
-  meatIcon(c.getContext('2d'), 40, 36, 2.3);
+  c.width = c.height = size;
+  draw(c.getContext('2d'));
   return c.toDataURL();
 }
 
+// Spiky burst that stands for hunting damage.
+function burst(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * TAU - Math.PI / 2, k = i % 2 ? 0.55 : 1;
+    ctx.lineTo(x + Math.cos(a) * r * k, y + Math.sin(a) * r * k);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#ff7a3d';
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = r * 0.12;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.fillStyle = '#ffe27a';
+  circle(ctx, x, y, r * 0.36);
+  ctx.fill();
+}
+
+export const meatIconURL = () => iconURL(72, g => meatIcon(g, 40, 36, 2.3));
+export const arrowIconURL = () => iconURL(72, g => drawArrow(g, 36, 36, -Math.PI / 4, BLUE, 1.7));
+export const damageIconURL = () => iconURL(72, g => burst(g, 36, 36, 30));
+
 export function cardIcon(id) {
   const c = document.createElement('canvas');
-  c.width = 200;
-  c.height = 150;
+  c.width = c.height = 160;
   const g = c.getContext('2d');
   g.scale(2, 2);
   if (id === 'melee' || id === 'archer') {
-    drawSquad(g, 50, 44, 1, 0, BLUE, id, 3, null, 0, 0, false, 2.1);
-  } else if (id === 'htower') {
-    g.translate(54, 50);
-    g.scale(1.45, 1.45);
-    drawHtower(g, 0, 0, BLUE, 1, 0, 1, false);
-  } else {
-    g.translate(50, 68);
+    drawSquad(g, 40, 46, 1, 0, BLUE, id, 3, null, 0, 0, false, 1.75);
+  } else if (id === 'giant') {
+    drawSquad(g, 36, 52, 1, 0, BLUE, id, 1, null, 0, 0, false, 1.9);
+  } else if (id === 'tower') {
+    g.translate(40, 68);
     g.scale(1.05, 1.05);
     drawTower(g, 0, 0, BLUE, 1, 0, 1, 0, false);
+  } else if (id === 'arrow') {
+    drawArrow(g, 26, 52, -Math.PI / 4, BLUE, 1.6);
+    drawArrow(g, 46, 40, -Math.PI / 4, BLUE, 1.6);
+  } else {
+    burst(g, 40, 42, 30);
+    drawArrow(g, 40, 44, -Math.PI / 4, BLUE, 1.2);
   }
   return c.toDataURL();
 }

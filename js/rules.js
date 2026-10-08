@@ -1,7 +1,6 @@
-import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, HTOWER, CENTER_ZONE } from './config.js';
-import { gap } from './utils.js';
+import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, UNITS } from './config.js';
 
-// Who may stand, move and build where. Pure functions over match state.
+// Who may stand and move where, and how a lane fights. Pure functions over match state.
 
 // ------------------------------------------------------------------ lanes
 
@@ -77,15 +76,15 @@ export function laneTarget(lane, team, slot, range) {
 }
 
 // Where a squad ends up after one step: up to `speed` slots forward, stopping the moment
-// an enemy comes into range. Archers therefore hold at arm's length, while melee squads
-// walk past friendly archers to meet the enemy head on.
+// an enemy comes into range. Archers therefore hold at arm's length, while warriors and
+// giants walk past friendly archers to meet the enemy head on.
 export function advance(lane, s) {
   const dir = dirOf(s.team), gate = homeSlot(1 - s.team);
   let pos = s.slot, used = 0;
   while (used < s.speed) {
     if (laneTarget(lane, s.team, pos, s.range)) break;
     let next = pos + dir, cost = 1;
-    while (s.kind === 'melee' && next !== gate) {
+    while (s.kind !== 'archer' && next !== gate) {
       const o = squadAt(lane, next);
       if (!o || o.team !== s.team || o.kind !== 'archer') break;
       next += dir;
@@ -125,15 +124,17 @@ export function laneStep(lane, team) {
 
   const raider = nearest(homeSlot(team), CASTLE.guardSlots);
   if (raider) {
-    acts.push({ type: 'guard', target: raider.id, dmg: CASTLE.guardDmg });
-    hurt(lane.squads, raider, CASTLE.guardDmg);
+    const dmg = CASTLE.guard[raider.kind];
+    acts.push({ type: 'guard', target: raider.id, dmg });
+    hurt(lane.squads, raider, dmg);
   }
 
   for (const tw of lane.towers.filter(t => t.team === team)) {
     const foe = nearest(tw.slot, tw.range);
     if (!foe) continue;
-    acts.push({ type: 'tower', by: tw.id, target: foe.id, dmg: tw.atk });
-    hurt(lane.squads, foe, tw.atk);
+    const dmg = UNITS.tower.dmg[foe.kind];
+    acts.push({ type: 'tower', by: tw.id, target: foe.id, dmg });
+    hurt(lane.squads, foe, dmg);
   }
 
   // Front squads go first so the ones behind can close up or walk past. Each steps
@@ -147,54 +148,15 @@ export function laneStep(lane, team) {
       if (moved) acts.push({ type: 'move', by: sq.id, to });
       continue;
     }
+    const table = UNITS[sq.kind].dmg;
     if (tgt.type === 'castle') {
-      acts.push({ type: 'attack', by: sq.id, to, kind: 'castle', dmg: sq.siege });
+      acts.push({ type: 'attack', by: sq.id, to, kind: 'castle', dmg: table.castle });
     } else {
-      acts.push({ type: 'attack', by: sq.id, to, kind: tgt.type, target: tgt.ref.id, slot: tgt.ref.slot, dmg: sq.atk });
-      hurt(tgt.type === 'squad' ? lane.squads : lane.towers, tgt.ref, sq.atk);
+      // How hard a strike lands depends on who is hitting whom.
+      const dmg = tgt.type === 'tower' ? table.tower : table[tgt.ref.kind];
+      acts.push({ type: 'attack', by: sq.id, to, kind: tgt.type, target: tgt.ref.id, slot: tgt.ref.slot, dmg });
+      hurt(tgt.type === 'squad' ? lane.squads : lane.towers, tgt.ref, dmg);
     }
   }
   return acts;
-}
-
-// ------------------------------------------------------------------ centre field
-
-export const htowerShape = (x, y) => ({ x, y, h: 0, r: HTOWER.r });
-export const castleShape = c => ({ x: c.x, y: c.y, h: CASTLE.halfLen, r: CASTLE.r });
-
-// How far up the field a team may ever build.
-export function centerLimit(m, team) {
-  const { FT, FB } = m.board, fh = FB - FT;
-  return team === BLUE ? FT + fh * CENTER_ZONE.limit : FB - fh * CENTER_ZONE.limit;
-}
-
-// Y of the edge of a team's build zone. Blue builds below it, red above it. Holding a
-// checkpoint on either road opens the field up level with it, and a hunter tower keeps
-// the ground out to itself even after the checkpoint is lost.
-export function centerLine(m, team) {
-  const b = m.board, fh = b.FB - b.FT;
-  const ys = [team === BLUE ? b.FB - fh * CENTER_ZONE.depth : b.FT + fh * CENTER_ZONE.depth];
-  m.lanes.forEach((lane, li) => {
-    for (const slot of CHECKPOINTS) {
-      if (cpOwner(lane, slot) === team) ys.push(b.lanePoint(li, slot).y);
-    }
-  });
-  for (const t of m.htowers) if (t.team === team) ys.push(t.y);
-  const limit = centerLimit(m, team);
-  return team === BLUE ? Math.max(Math.min(...ys), limit) : Math.min(Math.max(...ys), limit);
-}
-
-// Whether a hunter tower physically fits at (x, y).
-export function centerFits(m, x, y) {
-  const b = m.board, me = htowerShape(x, y);
-  if (b.fieldG(x, y, me.r + 8) >= 1) return false;
-  for (const c of b.castles) if (gap(me, castleShape(c)) < 12) return false;
-  for (const t of m.htowers) if (gap(me, htowerShape(t.x, t.y)) < 4) return false;
-  return true;
-}
-
-export function centerValid(m, team, x, y) {
-  const line = centerLine(m, team);
-  if (team === BLUE ? y < line - 0.5 : y > line + 0.5) return false;
-  return centerFits(m, x, y);
 }

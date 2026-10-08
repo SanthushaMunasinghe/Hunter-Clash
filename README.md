@@ -4,12 +4,32 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 
 Each turn has two states:
 
-1. **Hunt** – drag to aim (pull back like a slingshot, or push toward the target) and release one bouncing arrow. It bounces 5 times, taking a bite of meat out of every animal it hits. When the arrow lands, your troops march a step and strike whatever they reach, towers shoot and hunters walk.
-2. **Attack** – spend meat on cards. There are four, and each can be played once a turn. Drag one onto the board:
-   - **Warriors** – hit hard at close range and walk past friendly archers to meet the enemy head on.
-   - **Archers** – stop as soon as an enemy is in range and shoot from there. Fragile.
-   - **Guard Tower** – goes on a checkpoint you hold. Barely scratches anyone, but the enemy has to break it to pass.
-   - **Hunter Tower** – goes in your part of the centre field and never moves. Shoots an enemy hunter tower or the enemy castle if one is in range (for little damage); otherwise hunts animals in range and banks the meat.
+1. **Hunt** – the card panel slides away; drag in the strip under your castle to pull back, then release. Every arrow you own flies down that line, one after another. An arrow bounces off the field edge (up to 5 times) and is spent on the first animal it hits. When the volley lands, your troops march a step and strike whatever they reach.
+2. **Spend** – six cards, each playable once a turn. Drag one onto the board:
+   - **Warriors**, **Archers**, **Giant** – onto either road.
+   - **Tower** – onto a checkpoint you hold.
+   - **+1 Arrow**, **+Damage** – onto your own castle.
+
+## Hunting
+
+The herd is small, about six animals. A kill comes back two rounds later.
+
+- **Quick prey** (rabbit, deer, stag; gold number) dies to any hit and pays its whole bounty at once, but it moves fast and the aim preview does not lead it for you.
+- **Slow prey** (sheep, cow, bull, bear, dino) is easy to hit and pays a share of its bounty per hit, in proportion to hunting damage.
+- Richer prey arrives every 5 turns: cow on 6, bull and deer on 11, bear on 16, dino and stag on 21.
+
+**+1 Arrow** adds an arrow to every volley. **+Damage** adds 5 hunting damage, so slow prey pays more per hit. Both get dearer each time you buy them. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
+
+## Troops
+
+| | Good against | Weak against |
+|---|---|---|
+| **Warriors** | Archers (once they reach them); hold their own against giants | Archer fire on the way in |
+| **Archers** | Giants (two volleys); anything, from 4 slots away | Everything that reaches them |
+| **Giant** | Towers (one blow); soaks up warriors | Archers, castle guards |
+| **Tower** | Stalls warriors and archers for a turn | Giants |
+
+Archers stop as soon as an enemy is in range. Warriors and giants walk past friendly archers to meet the enemy head on. Squads strike the turn they arrive.
 
 ## Lanes
 
@@ -19,19 +39,13 @@ Checkpoints belong to whoever's front line has reached them, and troops can be d
 
 A castle has 100 health and its own guards, who shoot whatever reaches the gate. Pushes are meant to arrive, land a hit or two and die, so keep sending waves. The hunting arrow only does 5 to a castle; the lanes decide the match.
 
-## Centre field
-
-You start with a strip by your castle to build hunter towers on. Holding a checkpoint on either road opens the field up level with that checkpoint. Once a tower stands somewhere it keeps that ground, even if the checkpoint is lost, until the tower falls.
-
-The herd is fixed at the start. Killed animals come back three rounds later, a couple at a time, so meat gets scarcer the harder both sides hunt.
-
 Matches are capped at 25 turns. If both castles are still standing, the healthier one wins (then checkpoints held, then meat).
 
 ## Opponents
 
 Noob, Recruit, Veteran, Ace and Legend, picked on the menu before a match. They differ only in how well they aim and think; every unit stat and price is the same for both sides. A fresh page load always starts on Noob, whose first turn shows a drag-to-aim demo.
 
-All numbers (unit stats, prices, AI levels) live in `js/config.js`.
+All numbers (unit stats, prices, prey, AI levels) live in `js/config.js`.
 
 ## Run locally
 
@@ -56,8 +70,8 @@ js/main.js        boot, resize, main loop
 js/config.js      balance and layout constants
 js/board.js       field, lane and checkpoint geometry
 js/game.js        match state and turn flow
-js/arrow.js       bouncing arrow physics and shot simulation
-js/animals.js     animal spawning and wandering
+js/arrow.js       arrow physics and volley simulation
+js/animals.js     the herd: spawning, wandering, new prey
 js/rules.js       who may stand, move and build where; the lane step
 js/cards.js       dealing hands and playing cards
 js/ai.js          computer opponent

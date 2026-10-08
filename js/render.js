@@ -1,4 +1,4 @@
-import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, HTOWER, ARROW } from './config.js';
+import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, UPGRADE } from './config.js';
 import * as S from './sprites.js';
 import { cpOwner, homeSlot, towerAt } from './rules.js';
 import { previewPath } from './arrow.js';
@@ -233,7 +233,7 @@ export class Renderer {
     if (drag) this.drawDropZones(ctx, m, drag, t);
     this.drawEntities(ctx, m, t);
     this.drawAim(ctx, m, t);
-    this.drawArrow(ctx, m);
+    this.drawArrows(ctx, m);
     this.drawFx(ctx);
     if (drag) this.drawDropGhost(ctx, m, drag, t);
   }
@@ -291,7 +291,6 @@ export class Renderer {
           sq.team, sq.kind, count, sq.hp / sq.maxHp, sq.flash, t, sq.walking, unitScale));
       }
     });
-    for (const h of m.htowers) add(h.y + 6, () => S.drawHtower(ctx, h.x, h.y, h.team, h.hp / h.maxHp, h.flash, h.born));
     for (const a of m.animals) add(a.y + a.r * 0.6, () => S.drawAnimal(ctx, a, t));
     for (const c of b.castles) {
       const st = m.castles[c.team];
@@ -304,12 +303,13 @@ export class Renderer {
 
   drawAim(ctx, m, t) {
     if (m.phase === 'aim' && m.turnTeam === BLUE && !m.aim) {
-      // Waiting for the player: arrow nocked straight ahead, plus a nudge.
-      const L = m.board.castles[BLUE].launch;
+      // Waiting for the player: arrow nocked straight ahead. The card panel is hidden
+      // for this, so the prompt and the demo hand sit in the open strip under the castle.
+      const b = m.board, L = b.castles[BLUE].launch;
       const demo = m.tutorial ? this.tutorialPose(m, t) : null;
       if (demo && demo.aim) this.drawAimPath(ctx, previewPath(m, BLUE, demo.aim.angle), demo.aim.angle, demo.aim.pull, BLUE, t);
       else S.drawArrow(ctx, L.x, L.y - NOCK, -Math.PI / 2, BLUE);
-      this.drawAimPopup(ctx, L.x, L.y - 58, t);
+      this.drawAimPopup(ctx, b.cx, b.B + 30, t);
       if (demo) S.drawHand(ctx, demo.x, demo.y, demo.pressed, demo.alpha);
       return;
     }
@@ -317,28 +317,29 @@ export class Renderer {
     if (aim && aim.path) this.drawAimPath(ctx, aim.path, aim.angle, aim.pull, aim.team, t);
   }
 
-  // The looping hand demo shown on the first turn of a Noob match: press, pull back, let go.
+  // The looping hand demo shown on the first turn of a Noob match: press below the
+  // castle, pull back, let go.
   tutorialPose(m, t) {
     const b = m.board, u = (t % 2.8) / 2.8;
-    const from = { x: b.cx + 128, y: b.FB - 214 }, to = { x: b.cx + 72, y: b.FB - 104 };
+    const from = { x: b.cx - 16, y: b.B + 58 }, to = { x: b.cx + 24, y: b.B + 122 };
     const k = easeOut(clamp((u - 0.22) / 0.36, 0, 1));
     const x = lerp(from.x, to.x, k), y = lerp(from.y, to.y, k);
     const pose = { x, y, pressed: u > 0.14 && u < 0.84, alpha: clamp(u / 0.1, 0, 1) * clamp((1 - u) / 0.1, 0, 1), aim: null };
     const dx = x - from.x, dy = y - from.y, len = Math.hypot(dx, dy);
-    if (pose.pressed && len > 14) pose.aim = { angle: Math.atan2(-dy, -dx), pull: Math.min(len, 90) };
+    if (pose.pressed && len > 14) pose.aim = { angle: Math.atan2(-dy, -dx), pull: Math.min(len * 1.2, 90) };
     return pose;
   }
 
   drawAimPopup(ctx, x, y, t) {
-    const bob = Math.sin(t * 4) * 2.5, w = 132, h = 28;
+    const bob = Math.sin(t * 4) * 2.5, w = 140, h = 30;
     ctx.save();
     ctx.translate(x, y + bob);
     ctx.fillStyle = 'rgba(31,36,51,0.92)';
-    S.rr(ctx, -w / 2, -h / 2, w, h, 14);
+    S.rr(ctx, -w / 2, -h / 2, w, h, 15);
     ctx.fill();
-    S.poly(ctx, [-7, h / 2 - 1, 7, h / 2 - 1, 0, h / 2 + 7]);
+    S.poly(ctx, [-7, -h / 2 + 1, 7, -h / 2 + 1, 0, -h / 2 - 7]);
     ctx.fill();
-    ctx.font = S.fontStr(15);
+    ctx.font = S.fontStr(16);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffcf3f';
@@ -347,16 +348,17 @@ export class Renderer {
   }
 
   // Dotted preview: launch -> first contact, then a short fading stub of the bounce.
+  // An animal in the line of fire lights up.
   drawAimPath(ctx, pts, angle, pull, team, t) {
     const L = pts[0], col = team === BLUE ? '255,255,255' : '255,190,190';
 
-    // Pulled-back string behind the launch point.
-    ctx.strokeStyle = `rgba(${col},0.5)`;
-    ctx.lineWidth = 5;
+    // Pull-back beam behind the launch point.
+    ctx.strokeStyle = `rgba(${col},0.3)`;
+    ctx.lineWidth = 24;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(L.x, L.y);
-    ctx.lineTo(L.x - Math.cos(angle) * pull * 0.6, L.y - Math.sin(angle) * pull * 0.6);
+    ctx.lineTo(L.x - Math.cos(angle) * pull * 1.3, L.y - Math.sin(angle) * pull * 1.3);
     ctx.stroke();
     ctx.lineCap = 'butt';
 
@@ -373,35 +375,38 @@ export class Renderer {
         ctx.stroke();
       }
     };
-    if (pts[1]) {
-      dots(L, pts[1], Infinity, 0.95, 0.95);
+    if (pts[1]) dots(L, pts[1], Infinity, 0.95, 0.95);
+    if (pts[2]) dots(pts[1], pts[2], pts[2].kind === 'animal' ? Infinity : 150, 0.9, pts[2].kind === 'animal' ? 0.9 : 0.05);
+    for (const p of pts) {
+      if (p.kind !== 'animal') continue;
+      ctx.fillStyle = `rgba(${col},0.35)`;
       ctx.strokeStyle = `rgba(${col},0.95)`;
-      ctx.lineWidth = 2.5;
-      S.circle(ctx, pts[1].x, pts[1].y, ARROW.radius + 3);
+      ctx.lineWidth = 3;
+      S.circle(ctx, p.ox, p.oy, p.r + 5);
+      ctx.fill();
       ctx.stroke();
     }
-    if (pts[2]) dots(pts[1], pts[2], 130, 0.7, 0.05);
     S.drawArrow(ctx, L.x + Math.cos(angle) * NOCK, L.y + Math.sin(angle) * NOCK, angle, team);
   }
 
-  drawArrow(ctx, m) {
-    const ar = m.arrow;
-    if (!ar) return;
-    const c = S.TEAM_COL[ar.team], alpha = ar.done ? Math.max(0, ar.fade / 0.3) : 1;
-    ctx.lineCap = 'round';
-    for (let i = 1; i < ar.trail.length; i++) {
-      const p = ar.trail[i - 1], q = ar.trail[i], k = i / ar.trail.length;
-      ctx.strokeStyle = c.light;
-      ctx.globalAlpha = k * 0.6 * alpha;
-      ctx.lineWidth = 2 + k * 5;
-      ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
-      ctx.lineTo(q.x, q.y);
-      ctx.stroke();
+  drawArrows(ctx, m) {
+    for (const ar of m.arrows) {
+      const c = S.TEAM_COL[ar.team], alpha = ar.done ? Math.max(0, ar.fade / 0.25) : 1;
+      ctx.lineCap = 'round';
+      for (let i = 1; i < ar.trail.length; i++) {
+        const p = ar.trail[i - 1], q = ar.trail[i], k = i / ar.trail.length;
+        ctx.strokeStyle = c.light;
+        ctx.globalAlpha = k * 0.6 * alpha;
+        ctx.lineWidth = 2 + k * 5;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(q.x, q.y);
+        ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+      ctx.globalAlpha = alpha;
+      S.drawArrow(ctx, ar.x, ar.y, Math.atan2(ar.dy, ar.dx), ar.team, 1.1);
     }
-    ctx.lineCap = 'butt';
-    ctx.globalAlpha = alpha;
-    S.drawArrow(ctx, ar.x, ar.y, Math.atan2(ar.dy, ar.dx), ar.team, 1.1);
     ctx.globalAlpha = 1;
   }
 
@@ -449,22 +454,17 @@ export class Renderer {
     const b = m.board, pulse = 0.5 + 0.5 * Math.sin(t * 6), zone = CARDS[d.id].zone;
     const on = o => d.target && d.target.valid && d.target.lane === o.lane && d.target.slot === o.slot;
 
-    if (zone === 'center') {
-      const line = d.options.line;
-      ctx.save();
-      trace(ctx, b.fieldPts);
-      ctx.clip();
-      ctx.fillStyle = `rgba(47,141,242,${0.2 + pulse * 0.08})`;
-      ctx.fillRect(0, line, W, b.FB - line + 10);
-      ctx.setLineDash([10, 8]);
-      ctx.lineDashOffset = -t * 30;
+    if (zone === 'base') {
+      const p = d.options.base, hit = d.target && d.target.valid;
+      ctx.fillStyle = hit ? 'rgba(255,207,63,0.5)' : `rgba(255,207,63,${0.22 + pulse * 0.14})`;
+      S.ellipse(ctx, p.x, p.y, 74, 62);
+      ctx.fill();
+      ctx.setLineDash(hit ? [] : [8, 6]);
+      ctx.lineDashOffset = -t * 24;
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(0, line);
-      ctx.lineTo(W, line);
+      ctx.lineWidth = hit ? 4 : 2.5;
       ctx.stroke();
-      ctx.restore();
+      ctx.setLineDash([]);
       return;
     }
 
@@ -517,30 +517,8 @@ export class Renderer {
     const tg = d.target;
     if (!tg || !d.onBoard) return;
     const b = m.board, zone = CARDS[d.id].zone;
-    if (zone === 'center') {
-      ctx.globalAlpha = tg.valid ? 0.9 : 0.45;
-      if (tg.valid) {
-        ctx.fillStyle = 'rgba(255,255,255,0.12)';
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 6]);
-        S.circle(ctx, tg.x, tg.y, HTOWER.range);
-        ctx.fill();
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-      S.drawHtower(ctx, tg.x, tg.y, BLUE, 1, 0, 1, false);
-      ctx.globalAlpha = 1;
-      if (!tg.valid) {
-        ctx.strokeStyle = '#ff4d4d';
-        ctx.lineWidth = 5;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(tg.x - 12, tg.y - 12); ctx.lineTo(tg.x + 12, tg.y + 12);
-        ctx.moveTo(tg.x + 12, tg.y - 12); ctx.lineTo(tg.x - 12, tg.y + 12);
-        ctx.stroke();
-        ctx.lineCap = 'butt';
-      }
+    if (zone === 'base') {
+      if (tg.valid) S.label(ctx, d.id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, tg.x, tg.y - 74, 18, '#ffcf3f');
     } else if (tg.valid) {
       ctx.globalAlpha = 0.85;
       if (zone === 'lane') {

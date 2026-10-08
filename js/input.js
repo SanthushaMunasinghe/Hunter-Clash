@@ -1,6 +1,6 @@
-import { W, BLUE, CARDS } from './config.js';
+import { W, BLUE } from './config.js';
 import { clamp } from './utils.js';
-import { cardBlocker, dropOptions, dropTarget } from './cards.js';
+import { cardBlocker, cardCost, dropOptions, dropTarget } from './cards.js';
 
 const MIN_ELEV = 0.16;   // shallowest allowed shot, in radians off horizontal
 const AIM_DEADZONE = 14; // drag distance before an aim registers
@@ -99,14 +99,14 @@ export class Input {
     const m = this.game.match;
     if (!m || this.drag || this.game.paused) return;
     if (m.phase !== 'cards' || m.turnTeam !== BLUE) {
-      if (m.turnTeam === BLUE && m.phase === 'aim') this.ui.toast('Shoot your arrow first');
+      if (m.turnTeam === BLUE && m.phase === 'aim') this.ui.toast('Hunt first');
       return;
     }
     const id = m.teams[BLUE].hand[idx];
     if (!id) return; // already played this turn
     const blocker = cardBlocker(m, BLUE, id);
     if (blocker) {
-      const short = CARDS[id].cost - m.teams[BLUE].meat;
+      const short = cardCost(m.teams[BLUE], id) - m.teams[BLUE].meat;
       this.ui.toast(blocker === 'meat' ? `Need ${short} more meat`
         : id === 'tower' ? 'Hold a checkpoint first' : 'No free slot on your roads');
       this.sfx.play('error');
@@ -131,8 +131,7 @@ export class Input {
     d.onBoard = p.y < m.board.B + 6;
     d.target = dropTarget(m, BLUE, d.id, d.x, d.y, d.options);
     // The DOM ghost follows the finger until the canvas has a real preview to show.
-    const showGhost = !d.onBoard || (CARDS[d.id].zone !== 'center' && !d.target.valid);
-    this.ui.moveGhost(d.x, d.y, showGhost);
+    this.ui.moveGhost(d.x, d.y, !d.onBoard || !d.target.valid);
   }
 
   cardUp(e, el, drop) {

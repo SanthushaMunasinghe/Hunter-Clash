@@ -1,13 +1,13 @@
 import {
-  BLUE, RED, CHECKPOINTS, CASTLE, ARROW, HTOWER, CARDS, LEVELS, TURN_LIMIT,
+  BLUE, RED, CHECKPOINTS, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT,
 } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
 import { collectObstacles, stepArrow, previewPath } from './arrow.js';
-import { newTeam, dealHand, playCard, canPlayAny } from './cards.js';
+import { newTeam, dealHand, playCard, canPlayAny, basePoint } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
-import { advance, laneStep, cpOwner, castleShape } from './rules.js';
-import { dist, clamp, lerp, rand, gap, easeOut } from './utils.js';
+import { advance, laneStep, cpOwner } from './rules.js';
+import { dist, clamp, lerp, rand, easeOut } from './utils.js';
 
 const TEAM_TEXT = ['#bfe0ff', '#ffc4c4'];
 const TEAM_RING = ['#6db6ff', '#ff7b7b'];
@@ -19,11 +19,14 @@ export function createMatch(levelIdx, H) {
     castles: [BLUE, RED].map(team => ({ team, hp: CASTLE.hp, maxHp: CASTLE.hp, flash: 0 })),
     teams: [newTeam(), newTeam()],
     animals: [],
+    arrived: {},  // kinds of prey that have appeared so far
+    newcomers: [], // newly unlocked prey still waiting for room on the field
     respawns: [], // turn numbers at which killed animals are due back
     tick: 0,      // turns started so far, two per round
-    htowers: [],  // hunter towers in the centre field
     lanes: [0, 1].map(() => ({ squads: [], towers: [] })),
-    arrow: null, aim: null, nextId: 1, timers: [], wait: {},
+    arrows: [],   // arrows in flight
+    volley: null, // the hunt in progress: who is shooting, where, and how many are left
+    aim: null, nextId: 1, timers: [], wait: {},
     tutorial: levelIdx === 0, // show the drag demo until the first shot of a Noob match
   };
   initAnimals(m);
@@ -93,10 +96,11 @@ export class Game {
 
     // Start of turn: animals killed a while ago return and the hand is dealt again.
     m.tick++;
-    respawnAnimals(m);
+    const fresh = respawnAnimals(m);
+    if (fresh.length) this.emit('toast', 'New prey: ' + fresh.map(k => k[0].toUpperCase() + k.slice(1)).join(' and '));
     dealHand(m.teams[team]);
 
-    // Hunt: one bouncing arrow.
+    // Hunt: one volley, every arrow the team owns down the same line.
     m.phase = 'aim';
     m.aim = null;
     this.emit('turn', team);
@@ -188,17 +192,22 @@ export class Game {
     m.wait.end();
   }
 
-  // Shared by the player and the AI. Troops take one free step as they land.
+  // Shared by the player and the AI. Troops take one free step as they land; upgrades
+  // go straight onto the castle.
   play(m, team, idx, target) {
     const id = m.teams[team].hand[idx];
     const ent = playCard(m, team, idx, target);
     if (!ent) return false;
     this.sfx.play('place');
-    let p = ent;
-    if (CARDS[id].zone === 'lane') {
+    let p;
+    if (ent.upgrade) {
+      p = basePoint(m, team);
+      this.fx.text(p.x, p.y - 30, id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, '#ffcf3f', false, 17);
+      this.sfx.play('capture');
+    } else if (CARDS[id].zone === 'lane') {
       ent.slot = advance(m.lanes[ent.lane], ent);
       p = m.board.lanePoint(ent.lane, ent.slot);
-    } else if (CARDS[id].zone === 'checkpoint') {
+    } else {
       p = m.board.lanePoint(ent.lane, ent.slot);
     }
     this.fx.ring(p.x, p.y, TEAM_RING[team], 8, 44, 0.4);
@@ -207,69 +216,88 @@ export class Game {
 
   // ---------------------------------------------------------------- hunting
 
+  // Looses the team's whole quiver down one line, an arrow every ARROW.volleyGap seconds.
+  // Resolves once the last one has landed.
   fire(m, team, angle) {
-    const L = m.board.castles[team].launch;
-    m.arrow = {
-      team, x: L.x, y: L.y, dx: Math.cos(angle), dy: Math.sin(angle),
-      bouncesLeft: ARROW.bounces, done: false, life: 0, fade: 0, trail: [],
-    };
-    this.sfx.play('shoot');
+    m.volley = { team, angle, left: m.teams[team].arrows, wait: 0 };
     return new Promise(res => { m.wait.arrow = res; });
   }
 
-  updateArrow(m, dt) {
-    const ar = m.arrow;
-    if (!ar) return;
-    if (ar.done) {
-      ar.fade -= dt;
-      if (ar.fade <= 0) {
-        m.arrow = null;
-        const done = m.wait.arrow;
-        m.wait.arrow = null;
-        if (done) done();
-      }
-      return;
+  updateArrows(m, dt) {
+    const v = m.volley;
+    if (!v) return;
+    v.wait -= dt;
+    if (v.left > 0 && v.wait <= 0) {
+      const L = m.board.castles[v.team].launch;
+      m.arrows.push({
+        team: v.team, x: L.x, y: L.y, dx: Math.cos(v.angle), dy: Math.sin(v.angle),
+        bouncesLeft: ARROW.bounces, done: false, life: 0, fade: 0, trail: [],
+      });
+      v.left--;
+      v.wait = ARROW.volleyGap;
+      m.teams[v.team].shots++;
+      this.sfx.play('shoot');
     }
-    stepArrow(ar, collectObstacles(m, ar.team), m.board, ARROW.speed * dt, o => this.arrowHit(m, ar, o));
-    ar.life += dt;
-    if (ar.life > 14) ar.done = true;
-    ar.trail.push({ x: ar.x, y: ar.y });
-    if (ar.trail.length > 12) ar.trail.shift();
-    if (ar.done) {
-      ar.fade = 0.3;
-      this.fx.puff(ar.x, ar.y, '#ffffff', 8, 80);
+
+    const obs = collectObstacles(m, v.team);
+    for (let i = m.arrows.length - 1; i >= 0; i--) {
+      const ar = m.arrows[i];
+      if (ar.done) {
+        ar.fade -= dt;
+        if (ar.fade <= 0) m.arrows.splice(i, 1);
+        continue;
+      }
+      stepArrow(ar, obs, m.board, ARROW.speed * dt, o => this.arrowHit(m, ar, o));
+      ar.life += dt;
+      if (ar.life > 10) ar.done = true;
+      ar.trail.push({ x: ar.x, y: ar.y });
+      if (ar.trail.length > 12) ar.trail.shift();
+      if (ar.done) {
+        ar.fade = 0.25;
+        this.fx.puff(ar.x, ar.y, '#ffffff', 6, 70);
+      }
+    }
+
+    if (v.left === 0 && !m.arrows.length) {
+      m.volley = null;
+      const done = m.wait.arrow;
+      m.wait.arrow = null;
+      if (done) done();
     }
   }
 
+  // An arrow is spent on the first animal it meets (or on the enemy castle) and bounces
+  // off everything else.
   arrowHit(m, ar, o) {
-    switch (o.kind) {
-      case 'animal':
-        o.ref.kx += ar.dx * 70;
-        o.ref.ky += ar.dy * 70;
-        this.hurtAnimal(m, o.ref, ARROW.damage, ar.team);
-        break;
-      case 'htower':
-        this.hurtHtower(m, o.ref, ARROW.damage);
-        break;
-      case 'castle':
-        this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
-        return 'stop';
-      default:
-        this.sfx.play('bounce');
-        this.fx.puff(ar.x, ar.y, '#f4e2b0', 4, 45);
+    if (o.kind === 'animal') {
+      o.ref.kx += ar.dx * 70;
+      o.ref.ky += ar.dy * 70;
+      this.hurtAnimal(m, o.ref, m.teams[ar.team].damage, ar.team);
+      if (o.ref.hp <= 0) o.dead = true;
+      return 'stop';
     }
-    if (o.ref && o.ref.hp <= 0) o.dead = true;
+    if (o.kind === 'castle') {
+      this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
+      return 'stop';
+    }
+    this.sfx.play('bounce');
+    this.fx.puff(ar.x, ar.y, '#f4e2b0', 4, 45);
   }
 
   // ---------------------------------------------------------------- damage
 
+  // Hunting damage turns the animal's meat into the hunter's, share for share. The last
+  // hit takes whatever is left, so rounding never loses any.
   hurtAnimal(m, a, dmg, team) {
     const dealt = Math.min(a.hp, dmg);
     if (dealt <= 0) return 0;
     a.hp -= dealt;
+    const gain = a.hp <= 0 ? a.left : Math.min(a.left, Math.round((a.meat * dealt) / a.maxHp));
+    a.left -= gain;
     a.flash = 0.18;
-    m.teams[team].meat += dealt;
-    this.fx.text(a.x, a.y - a.r - 26, '+' + dealt, team === BLUE ? '#ffffff' : '#ffc4c4', true);
+    m.teams[team].meat += gain;
+    m.teams[team].hunted += gain;
+    this.fx.text(a.x, a.y - a.r - 26, '+' + gain, team === BLUE ? '#ffffff' : '#ffc4c4', true, gain >= 40 ? 20 : 16);
     this.fx.puff(a.x, a.y, '#ff8fa0', 5, 60);
     if (a.hp <= 0) {
       m.animals.splice(m.animals.indexOf(a), 1);
@@ -279,7 +307,7 @@ export class Game {
     } else {
       this.sfx.play('hit');
     }
-    return dealt;
+    return gain;
   }
 
   hurtCastle(m, team, dmg) {
@@ -337,20 +365,10 @@ export class Game {
     this.sfx.play('thud');
   }
 
-  hurtHtower(m, t, dmg) {
-    t.hp -= dmg;
-    t.flash = 0.2;
-    this.fx.text(t.x, t.y - 40, '-' + dmg, TEAM_TEXT[t.team], false, 13);
-    this.sfx.play('thud');
-    if (t.hp > 0) return;
-    m.htowers.splice(m.htowers.indexOf(t), 1);
-    this.fx.puff(t.x, t.y - 8, '#e9e2cf', 12, 90);
-  }
-
   // ---------------------------------------------------------------- unit actions
 
   async unitsAct(m, team) {
-    await Promise.all([this.laneAct(m, team, 0), this.laneAct(m, team, 1), this.centerAct(m, team)]);
+    await Promise.all([this.laneAct(m, team, 0), this.laneAct(m, team, 1)]);
     await this.sleep(m, 0.2);
   }
 
@@ -364,7 +382,7 @@ export class Game {
     } else {
       to = b.lanePoint(li, act.slot);
     }
-    if (s.kind === 'melee') {
+    if (s.kind !== 'archer') {
       const d = dist(from.x, from.y, to.x, to.y) || 1;
       s.lunge = 0.22;
       s.lx = (to.x - from.x) / d;
@@ -431,59 +449,6 @@ export class Game {
     }
   }
 
-  async centerAct(m, team) {
-    const b = m.board, enemy = 1 - team, home = b.castles[team], goal = b.castles[enemy];
-    const point = e => ({ x: e.x, y: e.y, h: 0, r: 0 });
-
-    // Castle guards pick off enemy towers built too close.
-    let intruder = null, reach = CASTLE.guardCenterRange;
-    for (const e of m.htowers) {
-      const d = gap(point(e), castleShape(home));
-      if (e.team === enemy && d < reach) { reach = d; intruder = e; }
-    }
-    if (intruder) {
-      this.fx.shot(home.x, home.drawY - 40, intruder.x, intruder.y - 10, { arc: 22 });
-      this.sfx.play('bow');
-      this.hurtHtower(m, intruder, CASTLE.guardCenterDmg);
-      await this.sleep(m, 0.14);
-    }
-
-    // Hunter towers fight first and hunt second: an enemy tower in range, then the
-    // enemy castle, and only with neither in reach do they go after game.
-    for (const t of m.htowers.filter(e => e.team === team)) {
-      if (t.hp <= 0 || m.over) continue;
-      const closest = (list, pad) => {
-        let best = null, bd = HTOWER.range;
-        for (const e of list) {
-          const d = dist(t.x, t.y, e.x, e.y) - pad(e);
-          if (d <= bd) { bd = d; best = e; }
-        }
-        return best;
-      };
-      const foe = closest(m.htowers.filter(e => e.team === enemy), () => 0);
-      const siege = !foe && gap(point(t), castleShape(goal)) <= HTOWER.range;
-      const prey = foe || siege ? null : closest(m.animals, a => a.r);
-      if (foe) {
-        this.hunterShot(t, foe.x, foe.y - 8);
-        this.hurtHtower(m, foe, HTOWER.atkUnit);
-      } else if (siege) {
-        this.hunterShot(t, goal.x, goal.drawY - 30);
-        this.hurtCastle(m, enemy, HTOWER.atkCastle);
-      } else if (prey) {
-        this.hunterShot(t, prey.x, prey.y);
-        this.hurtAnimal(m, prey, HTOWER.atkAnimal, team);
-      } else {
-        continue;
-      }
-      await this.sleep(m, 0.14);
-    }
-  }
-
-  hunterShot(t, x, y) {
-    this.fx.shot(t.x, t.y - 26, x, y, { arc: 10, dur: 0.16 });
-    this.sfx.play('bow');
-  }
-
   // ---------------------------------------------------------------- per-frame
 
   update(dt) {
@@ -502,7 +467,7 @@ export class Game {
     }
 
     updateAnimals(m, dt);
-    this.updateArrow(m, dt);
+    this.updateArrows(m, dt);
 
     for (const lane of m.lanes) {
       for (const s of lane.squads) {
@@ -517,10 +482,6 @@ export class Game {
         t.born = Math.min(1, t.born + dt * 4);
       }
     }
-    for (const t of m.htowers) {
-      t.flash = Math.max(0, t.flash - dt);
-      t.born = Math.min(1, t.born + dt * 4);
-    }
     for (const c of m.castles) c.flash = Math.max(0, c.flash - dt);
 
     if (m.aim) m.aim.path = previewPath(m, m.aim.team, m.aim.angle);
@@ -534,14 +495,10 @@ export class Game {
     if (!m || m.board.H === H) return;
     const old = m.board, nb = makeBoard(H);
     const mapY = y => nb.cy + (y - old.cy) * (nb.b / old.b);
-    const remap = list => {
-      for (const e of list) e.y = mapY(e.y);
-    };
-    remap(m.animals);
-    remap(m.htowers);
-    if (m.arrow) {
-      m.arrow.y = mapY(m.arrow.y);
-      m.arrow.trail = [];
+    for (const a of m.animals) a.y = mapY(a.y);
+    for (const ar of m.arrows) {
+      ar.y = mapY(ar.y);
+      ar.trail = [];
     }
     m.board = nb;
   }
