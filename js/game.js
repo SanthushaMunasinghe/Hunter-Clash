@@ -6,7 +6,7 @@ import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './anim
 import { collectObstacles, stepArrow, previewPath } from './arrow.js';
 import { newTeam, dealHand, playCard, canPlayAny, basePoint } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
-import { advance, laneStep, cpOwner } from './rules.js';
+import { advance, strikeAct, laneStep, cpOwner } from './rules.js';
 import { dist, clamp, lerp, rand, easeOut } from './utils.js';
 
 const TEAM_TEXT = ['#bfe0ff', '#ffc4c4'];
@@ -192,8 +192,8 @@ export class Game {
     m.wait.end();
   }
 
-  // Shared by the player and the AI. Troops take one free step as they land; upgrades
-  // go straight onto the castle.
+  // Shared by the player and the AI. Troops take one free step as they land and strike
+  // if that brings something into range; upgrades go straight onto the castle.
   play(m, team, idx, target) {
     const id = m.teams[team].hand[idx];
     const ent = playCard(m, team, idx, target);
@@ -205,8 +205,16 @@ export class Game {
       this.fx.text(p.x, p.y - 30, id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, '#ffcf3f', false, 17);
       this.sfx.play('capture');
     } else if (CARDS[id].zone === 'lane') {
-      ent.slot = advance(m.lanes[ent.lane], ent);
+      const lane = m.lanes[ent.lane], from = ent.slot;
+      ent.slot = advance(lane, ent);
       p = m.board.lanePoint(ent.lane, ent.slot);
+      // Landing in reach of something earns a blow, once the squad has walked up to it.
+      if (strikeAct(lane, ent)) {
+        this.sleep(m, (Math.abs(ent.slot - from) + 0.8) / WALK_SPEED + 0.1).then(() => {
+          const act = !m.over && lane.squads.includes(ent) ? strikeAct(lane, ent) : null;
+          if (act) this.squadAttack(m, ent.lane, ent, act);
+        });
+      }
     } else {
       p = m.board.lanePoint(ent.lane, ent.slot);
     }
@@ -219,7 +227,7 @@ export class Game {
   // Looses the team's whole quiver down one line, an arrow every ARROW.volleyGap seconds.
   // Resolves once the last one has landed.
   fire(m, team, angle) {
-    m.volley = { team, angle, left: m.teams[team].arrows, wait: 0 };
+    m.volley = { team, angle, left: m.teams[team].arrows, wait: 0, struck: false };
     return new Promise(res => { m.wait.arrow = res; });
   }
 
@@ -277,7 +285,8 @@ export class Game {
       return 'stop';
     }
     if (o.kind === 'castle') {
-      this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
+      if (m.volley && !m.volley.struck) this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
+      if (m.volley) m.volley.struck = true;
       return 'stop';
     }
     this.sfx.play('bounce');

@@ -124,7 +124,7 @@ export function simulateVolley(m, team, angle, lead = false) {
   for (let i = 0; i < T.arrows; i++) {
     const r = dryArrow(m, team, angle, obs, T.damage, i * ARROW.volleyGap, Infinity, null);
     total.meat += r.meat;
-    total.castle += r.castle;
+    total.castle = Math.max(total.castle, r.castle); // one arrow per volley hurts a castle
   }
   return total;
 }

@@ -19,39 +19,45 @@ export const LANE_LEN = 24;
 export const CHECKPOINTS = [2, 7, 12, 17, 22];
 export const HOME_INSET = 76; // px along the road from a castle to its home slot
 
-// guard: what the castle's own archers do to a squad at the gate, by squad kind.
+// guard: what the castle's own archers do to a squad within guardSlots of the gate,
+// by squad kind.
 export const CASTLE = {
   hp: 100, halfLen: 26, r: 26, scale: 0.85,
-  guardSlots: 4, guard: { melee: 20, archer: 20, giant: 30 },
+  guardSlots: 2, guard: { melee: 20, archer: 20, giant: 20 },
 };
 
 // An arrow bounces off the field edge up to `bounces` times and is spent on the first
-// animal it hits. damage is the starting hunting damage; castleDamage never grows.
-export const ARROW = { speed: 800, radius: 6, step: 3, bounces: 5, damage: 10, castleDamage: 5, volleyGap: 0.16 };
+// animal it hits. damage is the starting hunting damage. castleDamage never grows, and
+// only one arrow of a volley can hurt the castle, however many reach it.
+export const ARROW = { speed: 800, radius: 6, step: 3, bounces: 5, damage: 5, castleDamage: 5, volleyGap: 0.16 };
 
-// Lane troops. speed: slots covered in one step. dmg: damage per strike by target kind.
-// The counters: archers shred giants, giants flatten guard towers and shrug off warriors,
-// warriors cut down archers. Everything kills archers once it reaches them.
+// Lane troops. speed: slots covered in one step. range: how many slots ahead it can hit;
+// nothing reaches further than 2. dmg: damage per strike by target kind.
+// Archers die to a single blow from any squad. Warriors and giants are the same in a
+// fight (two blows fell either), but a giant is slower and dearer: its one job is guard
+// towers, which it breaks in 2 blows where warriors and archers together need 6.
 export const UNITS = {
-  melee: { hp: 36, range: 1, speed: 5, dmg: { melee: 24, archer: 24, giant: 20, tower: 15, castle: 25 } },
-  archer: { hp: 16, range: 4, speed: 5, dmg: { melee: 12, archer: 12, giant: 30, tower: 8, castle: 10 } },
-  giant: { hp: 60, range: 1, speed: 4, dmg: { melee: 12, archer: 16, giant: 16, tower: 30, castle: 30 } },
-  tower: { hp: 30, range: 2, dmg: { melee: 4, archer: 4, giant: 4 } },
+  melee: { hp: 36, range: 1, speed: 5, dmg: { melee: 24, archer: 24, giant: 24, tower: 10, castle: 25 } },
+  archer: { hp: 16, range: 2, speed: 5, dmg: { melee: 12, archer: 16, giant: 12, tower: 10, castle: 10 } },
+  giant: { hp: 36, range: 1, speed: 4, dmg: { melee: 24, archer: 24, giant: 24, tower: 30, castle: 25 } },
+  tower: { hp: 60, range: 2, dmg: { melee: 4, archer: 4, giant: 4 } },
 };
 
 // Prey. hp is how much hunting damage it soaks up; meat is what it pays out in total,
 // shared across hits in proportion to damage. Fast animals die to any hit and pay well
 // but have to be led; slow ones are easy targets that pay a little per hit.
 // from: the turn it first appears. Richer prey arrives every 5 turns.
+// band: where it roams, as a fraction of the way from the middle of the field to a base.
+// Cheap prey grazes near the castles; the quick kinds keep to the middle, far from both.
 export const ANIMALS = {
-  sheep: { hp: 30, meat: 75, r: 15, speed: 14, from: 1 },
-  rabbit: { hp: 10, meat: 40, r: 12, speed: 46, fast: true, from: 1 },
-  cow: { hp: 40, meat: 120, r: 17, speed: 13, from: 6 },
-  bull: { hp: 50, meat: 180, r: 19, speed: 12, from: 11 },
-  deer: { hp: 10, meat: 65, r: 14, speed: 56, fast: true, from: 11 },
-  bear: { hp: 70, meat: 295, r: 23, speed: 10, from: 16 },
-  dino: { hp: 100, meat: 500, r: 27, speed: 8, from: 21 },
-  stag: { hp: 10, meat: 100, r: 15, speed: 64, fast: true, from: 21 },
+  sheep: { hp: 20, meat: 48, r: 15, speed: 15, from: 1, band: [0.5, 0.86] },
+  rabbit: { hp: 5, meat: 18, r: 12, speed: 46, fast: true, from: 1, band: [0, 0.26] },
+  cow: { hp: 25, meat: 70, r: 17, speed: 14, from: 6, band: [0.42, 0.8] },
+  bull: { hp: 30, meat: 96, r: 19, speed: 13, from: 11, band: [0.32, 0.72] },
+  deer: { hp: 5, meat: 28, r: 14, speed: 56, fast: true, from: 11, band: [0, 0.26] },
+  bear: { hp: 40, meat: 144, r: 23, speed: 12, from: 16, band: [0.22, 0.62] },
+  dino: { hp: 50, meat: 220, r: 27, speed: 10, from: 21, band: [0.08, 0.5] },
+  stag: { hp: 5, meat: 42, r: 15, speed: 64, fast: true, from: 21, band: [0, 0.26] },
 };
 // Opening herd, as point-mirrored pairs.
 export const HERD_START = ['sheep', 'sheep', 'rabbit'];
@@ -62,18 +68,18 @@ export const HERD = { size: 6, min: 4, max: 8, delay: 2, perTurn: 2 };
 
 // zone: where a card is dropped. step: how much dearer an upgrade gets each time it is bought.
 export const CARDS = {
-  melee: { name: 'Warriors', cost: 40, zone: 'lane' },
-  archer: { name: 'Archers', cost: 40, zone: 'lane' },
-  giant: { name: 'Giant', cost: 55, zone: 'lane' },
+  melee: { name: 'Warriors', cost: 20, zone: 'lane' },
+  archer: { name: 'Archers', cost: 20, zone: 'lane' },
+  giant: { name: 'Giant', cost: 28, zone: 'lane' },
   tower: { name: 'Tower', cost: 30, zone: 'checkpoint' },
-  arrow: { name: '+1 Arrow', cost: 80, step: 40, zone: 'base' },
-  damage: { name: '+Damage', cost: 60, step: 30, zone: 'base' },
+  arrow: { name: '+1 Arrow', cost: 40, step: 30, zone: 'base' },
+  damage: { name: '+Damage', cost: 25, step: 20, zone: 'base' },
 };
 // The hand, in screen order. Every card comes back each turn and can be played once.
 export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage'];
 export const HAND_SIZE = CARD_ORDER.length;
-export const START_MEAT = 30;
-export const UPGRADE = { damage: 5 }; // hunting damage added per +Damage card
+export const START_MEAT = 15;
+export const UPGRADE = { damage: 2 }; // hunting damage added per +Damage card
 
 // A match never runs long: once this many turns are up, the healthier castle wins.
 // Level castles go to whoever holds more checkpoints, then more meat; if even that is
@@ -92,6 +98,6 @@ export const LEVELS = [
   { name: 'NOOB', blurb: 'Still learning which end of the arrow is sharp.', aimSamples: 2, aimError: 0.2, lead: false, smart: 0.15, lookahead: 0, maxCards: 1, skip: 0.35 },
   { name: 'RECRUIT', blurb: 'Knows the rules, makes plenty of mistakes.', aimSamples: 4, aimError: 0.12, lead: false, smart: 0.3, lookahead: 0, maxCards: 1, skip: 0.2 },
   { name: 'VETERAN', blurb: 'A fair fight. Think before you spend.', aimSamples: 12, aimError: 0.05, lead: false, smart: 0.75, lookahead: 0, maxCards: 3, skip: 0 },
-  { name: 'ACE', blurb: 'Sharp aim and well-timed pushes.', aimSamples: 30, aimError: 0.02, lead: true, smart: 0.9, lookahead: 2, maxCards: 3, skip: 0, minScore: 40, eco: 10 },
-  { name: 'LEGEND', blurb: 'Rarely misses. Punishes every gap.', aimSamples: 64, aimError: 0, lead: true, smart: 1, lookahead: 3, maxCards: 4, skip: 0, minScore: 45, eco: 25 },
+  { name: 'ACE', blurb: 'Sharp aim and well-timed pushes.', aimSamples: 30, aimError: 0.02, lead: true, smart: 0.9, lookahead: 2, maxCards: 3, skip: 0, minScore: 40, eco: 15 },
+  { name: 'LEGEND', blurb: 'Rarely misses. Punishes every gap.', aimSamples: 64, aimError: 0, lead: true, smart: 1, lookahead: 3, maxCards: 4, skip: 0, minScore: 30, eco: 15 },
 ];

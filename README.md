@@ -4,7 +4,7 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 
 Each turn has two states:
 
-1. **Hunt** – the card panel slides away; drag in the strip under your castle to pull back, then release. Every arrow you own flies down that line, one after another. An arrow bounces off the field edge (up to 5 times) and is spent on the first animal it hits. When the volley lands, your troops march a step and strike whatever they reach.
+1. **Hunt** – the card panel slides away; drag in the strip under your castle to pull back, then release. Every arrow you own flies down that line, one after another. An arrow bounces off the field edge (up to 5 times) and is spent on the first animal it hits. When the volley lands, each of your squads strikes whatever is in reach, steps forward if the way is clear, and strikes again where it stops.
 2. **Spend** – six cards, each playable once a turn. Drag one onto the board:
    - **Warriors**, **Archers**, **Giant** – onto either road.
    - **Tower** – onto a checkpoint you hold.
@@ -14,22 +14,23 @@ Each turn has two states:
 
 The herd is small, about six animals. A kill comes back two rounds later.
 
-- **Quick prey** (rabbit, deer, stag; gold number) dies to any hit and pays its whole bounty at once, but it moves fast and the aim preview does not lead it for you.
-- **Slow prey** (sheep, cow, bull, bear, dino) is easy to hit and pays a share of its bounty per hit, in proportion to hunting damage.
+- **Quick prey** (rabbit, deer, stag; gold number) dies to any hit and pays its whole bounty at once. It keeps to the middle of the field, far from both castles, moves fast, and the aim preview does not lead it for you.
+- **Slow prey** (sheep, cow, bull, bear, dino) pays a share of its bounty per hit, in proportion to hunting damage, and takes several hits. The cheapest kinds graze nearest the castles; richer ones roam further out.
+- Nothing ever stands still.
 - Richer prey arrives every 5 turns: cow on 6, bull and deer on 11, bear on 16, dino and stag on 21.
 
-**+1 Arrow** adds an arrow to every volley. **+Damage** adds 5 hunting damage, so slow prey pays more per hit. Both get dearer each time you buy them. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
+**+1 Arrow** adds an arrow to every volley. **+Damage** adds 2 hunting damage (you start on 5), so slow prey pays more per hit. Both get dearer each time you buy them. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
 
 ## Troops
 
-| | Good against | Weak against |
+| | What it is for | Weakness |
 |---|---|---|
-| **Warriors** | Archers (once they reach them); hold their own against giants | Archer fire on the way in |
-| **Archers** | Giants (two volleys); anything, from 4 slots away | Everything that reaches them |
-| **Giant** | Towers (one blow); soaks up warriors | Archers, castle guards |
-| **Tower** | Stalls warriors and archers for a turn | Giants |
+| **Warriors** | The all-round fighter: 36 health, fells warriors or giants in two blows | None in particular |
+| **Archers** | Hit 2 slots ahead, so they add damage from behind a front-liner | Die to a single blow from any squad |
+| **Giant** | Breaking guard towers: 2 blows | Slower and dearer than warriors, and no better in a fight |
+| **Tower** | Blocks the road. Warriors and archers together need 6 blows to break it | Giants |
 
-Archers stop as soon as an enemy is in range. Warriors and giants walk past friendly archers to meet the enemy head on. Squads strike the turn they arrive.
+Nothing hits further than 2 slots, towers and castle guards included, so only the front of a column fights. Archers stop as soon as an enemy is in range; warriors and giants walk past friendly archers to meet the enemy head on. A squad strikes whenever a step ends with an enemy in reach, including the free step it takes when you place it.
 
 ## Lanes
 
@@ -37,7 +38,7 @@ Each road is a row of 25 slots with 5 checkpoints, 4 open slots between neighbou
 
 Checkpoints belong to whoever's front line has reached them, and troops can be dropped on any free slot from your gate up to the furthest checkpoint you hold. Lose the units holding the line and the checkpoints go with them.
 
-A castle has 100 health and its own guards, who shoot whatever reaches the gate. Pushes are meant to arrive, land a hit or two and die, so keep sending waves. The hunting arrow only does 5 to a castle; the lanes decide the match.
+A castle has 100 health and its own guards, who shoot whatever reaches the gate. Pushes are meant to arrive, land a hit or two and die, so keep sending waves. A volley can only do 5 to a castle however many arrows reach it; the lanes decide the match.
 
 Matches are capped at 25 turns. If both castles are still standing, the healthier one wins (then checkpoints held, then meat).
 

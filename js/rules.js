@@ -99,13 +99,44 @@ export function advance(lane, s) {
   return pos;
 }
 
+// The blow a squad would land from where it stands, as an 'attack' action, or null if
+// nothing is in range. How hard it lands depends on who is hitting whom.
+export function strikeAct(lane, sq) {
+  const tgt = laneTarget(lane, sq.team, sq.slot, sq.range);
+  if (!tgt) return null;
+  const table = UNITS[sq.kind].dmg;
+  if (tgt.type === 'castle') return { type: 'attack', by: sq.id, to: sq.slot, kind: 'castle', dmg: table.castle };
+  const dmg = tgt.type === 'tower' ? table.tower : table[tgt.ref.kind];
+  return { type: 'attack', by: sq.id, to: sq.slot, kind: tgt.type, target: tgt.ref.id, slot: tgt.ref.slot, dmg };
+}
+
+// Applies an 'attack' action's damage to the lane it was worked out on.
+function land(lane, act) {
+  if (act.kind === 'castle') return;
+  const list = act.kind === 'squad' ? lane.squads : lane.towers;
+  const e = list.find(o => o.id === act.target);
+  if (!e) return;
+  e.hp -= act.dmg;
+  if (e.hp <= 0) list.splice(list.indexOf(e), 1);
+}
+
+// A squad that has just been dropped on the lane takes its free step and, if that brings
+// something into range, strikes it. Mutates the lane; returns the blow, if any.
+export function dropStep(lane, sq) {
+  sq.slot = advance(lane, sq);
+  const act = strikeAct(lane, sq);
+  if (act) land(lane, act);
+  return act;
+}
+
 // Plays out one team's whole step on `lane`, mutating it, and returns what happened in
 // order. The game runs this on a copy and replays the result with animation; the AI runs
 // it on copies to look ahead. Entities are referred to by id so a plan can be replayed.
 //   { type: 'guard', target, dmg }                      castle guards shoot a squad
 //   { type: 'tower', by, target, dmg }                  guard tower shoots a squad
 //   { type: 'move', by, to }                            squad walks
-//   { type: 'attack', by, to, kind, target, slot, dmg } squad walks to `to`, then strikes;
+//   { type: 'attack', by, to, kind, target, slot, dmg } squad walks to `to` (if it is not
+//                                                       there already), then strikes;
 //                                                       kind is 'squad', 'tower' or 'castle'
 export function laneStep(lane, team) {
   const acts = [], enemy = 1 - team, dir = dirOf(team);
@@ -137,25 +168,26 @@ export function laneStep(lane, team) {
     hurt(lane.squads, foe, dmg);
   }
 
-  // Front squads go first so the ones behind can close up or walk past. Each steps
-  // forward until something is in reach, then strikes: a charge lands the same turn.
+  // Front squads go first so the ones behind can close up or walk past. A squad with
+  // something in range strikes where it stands. Then, if the way is clear (because it
+  // had nothing to hit, or because that blow cleared it), it steps forward and strikes
+  // again at whatever the step brought into range.
   const squads = lane.squads.filter(q => q.team === team).sort((p, q) => dir * (q.slot - p.slot));
   for (const sq of squads) {
-    const to = advance(lane, sq), moved = to !== sq.slot;
-    sq.slot = to;
-    const tgt = laneTarget(lane, team, to, sq.range);
-    if (!tgt) {
-      if (moved) acts.push({ type: 'move', by: sq.id, to });
-      continue;
+    const first = strikeAct(lane, sq);
+    if (first) {
+      acts.push(first);
+      land(lane, first);
     }
-    const table = UNITS[sq.kind].dmg;
-    if (tgt.type === 'castle') {
-      acts.push({ type: 'attack', by: sq.id, to, kind: 'castle', dmg: table.castle });
+    const to = advance(lane, sq);
+    if (to === sq.slot) continue;
+    sq.slot = to;
+    const second = strikeAct(lane, sq);
+    if (second) {
+      acts.push(second);
+      land(lane, second);
     } else {
-      // How hard a strike lands depends on who is hitting whom.
-      const dmg = tgt.type === 'tower' ? table.tower : table[tgt.ref.kind];
-      acts.push({ type: 'attack', by: sq.id, to, kind: tgt.type, target: tgt.ref.id, slot: tgt.ref.slot, dmg });
-      hurt(tgt.type === 'squad' ? lane.squads : lane.towers, tgt.ref, dmg);
+      acts.push({ type: 'move', by: sq.id, to });
     }
   }
   return acts;

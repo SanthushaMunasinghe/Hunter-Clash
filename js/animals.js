@@ -4,15 +4,22 @@ import { rand, dist, clamp, gap, TAU } from './utils.js';
 const LAUNCH_CLEAR = 42; // animals keep out of the mouth of each castle
 
 // left: meat still on the animal. It drains as hunting damage lands and is what the
-// number over its head shows.
+// number over its head shows. side: which base a slow animal grazes near (+1 blue's,
+// -1 red's); quick prey has no side and keeps to the middle.
 function makeAnimal(m, type, x, y, spawn = 1) {
   const d = ANIMALS[type];
   return {
     id: m.nextId++, type, x, y, r: d.r, hp: d.hp, maxHp: d.hp, meat: d.meat, left: d.meat,
-    speed: d.speed, fast: !!d.fast,
-    heading: rand(TAU), wanderT: rand(0.5, 2), moving: Math.random() < 0.7,
+    speed: d.speed, fast: !!d.fast, side: d.fast ? 0 : y > m.board.cy ? 1 : -1,
+    heading: rand(TAU), wanderT: rand(0.5, 2), moving: true,
     face: Math.random() < 0.5 ? -1 : 1, kx: 0, ky: 0, flash: 0, spawn,
   };
+}
+
+// A random y inside a kind's band, on the given side of the field (+1 toward blue).
+function bandY(m, type, side) {
+  const [lo, hi] = ANIMALS[type].band;
+  return m.board.cy + side * rand(Math.max(lo, 0.04), hi) * m.board.b;
 }
 
 function spotFree(m, x, y, r, pad) {
@@ -30,7 +37,7 @@ function spotFree(m, x, y, r, pad) {
 function spawnPair(m, type, spawn) {
   const b = m.board, r = ANIMALS[type].r;
   for (let tries = 0; tries < 300; tries++) {
-    const x = b.cx + rand(-b.a, b.a), y = rand(b.cy + r + 4, b.FB);
+    const x = b.cx + rand(-b.a, b.a), y = bandY(m, type, 1);
     const mx = 2 * b.cx - x, my = 2 * b.cy - y;
     const pad = tries < 200 ? 16 : 4;
     if (dist(x, y, mx, my) < 2 * r + pad) continue;
@@ -41,10 +48,14 @@ function spawnPair(m, type, spawn) {
   return false;
 }
 
+// A single replacement. Slow prey goes to whichever base currently has less of it.
 function spawnOne(m, type) {
   const b = m.board, r = ANIMALS[type].r;
+  let lean = 0;
+  for (const a of m.animals) lean += a.side;
+  const side = ANIMALS[type].fast || lean === 0 ? (Math.random() < 0.5 ? 1 : -1) : -Math.sign(lean);
   for (let tries = 0; tries < 200; tries++) {
-    const x = b.cx + rand(-b.a, b.a), y = rand(b.FT, b.FB);
+    const x = b.cx + rand(-b.a, b.a), y = bandY(m, type, side);
     if (!spotFree(m, x, y, r, tries < 120 ? 16 : 4)) continue;
     m.animals.push(makeAnimal(m, type, x, y, 0));
     return true;
@@ -117,7 +128,7 @@ function pushOut(a, px, py, minDist) {
 
 // Current wander velocity, without knock-back. The AI uses it to lead its shots.
 export function animalVelocity(a) {
-  return a.moving ? { x: Math.cos(a.heading) * a.speed, y: Math.sin(a.heading) * a.speed } : { x: 0, y: 0 };
+  return { x: Math.cos(a.heading) * a.speed, y: Math.sin(a.heading) * a.speed };
 }
 
 export function updateAnimals(m, dt) {
@@ -126,19 +137,23 @@ export function updateAnimals(m, dt) {
   for (const a of list) {
     a.flash = Math.max(0, a.flash - dt);
     a.spawn = Math.min(1, a.spawn + dt * 2.5);
+    // Animals never stand still. Fast ones dart about in short straight runs; slow ones amble.
     a.wanderT -= dt;
     if (a.wanderT <= 0) {
-      // Fast animals dart about in short straight runs; slow ones amble and graze.
       a.wanderT = a.fast ? rand(0.9, 2.2) : rand(1.5, 4);
-      a.moving = Math.random() < (a.fast ? 0.85 : 0.72);
       a.heading += a.fast ? rand(-2, 2) : rand(-1.3, 1.3);
     }
+
+    // Keep to the kind's band: cheap prey near its base, quick prey in the middle.
+    const [lo, hi] = ANIMALS[a.type].band, ny = (a.y - b.cy) / b.b;
+    const out = a.side ? a.side * ny : Math.abs(ny), toBase = a.side || Math.sign(ny) || 1;
+    const want = out < lo ? toBase : out > hi ? -toBase : 0;
+    if (want && Math.sin(a.heading) * want < 0.25) a.heading = Math.atan2(want * rand(0.5, 1), rand(-1, 1));
 
     // Turn back before reaching the edge.
     if (b.fieldG(a.x, a.y, a.r + 10 + a.speed * 0.3) > 0.9) {
       const N = b.fieldN(a.x, a.y, a.r + 10);
       a.heading = Math.atan2(-N.y, -N.x) + rand(-0.7, 0.7);
-      a.moving = true;
     }
 
     const v = animalVelocity(a), vx = v.x + a.kx, vy = v.y + a.ky;

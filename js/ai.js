@@ -1,7 +1,7 @@
 import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT } from './config.js';
 import { simulateVolley } from './arrow.js';
 import { cardBlocker, cardCost, basePoint } from './cards.js';
-import { deploySlots, towerSpots, frontier, homeSlot, advance, laneStep } from './rules.js';
+import { deploySlots, towerSpots, frontier, homeSlot, advance, strikeAct, dropStep, laneStep } from './rules.js';
 import { rand, pick, lerp, clamp } from './utils.js';
 
 // The computer player. Written for either team so matches can be simulated AI vs AI.
@@ -14,16 +14,23 @@ export function chooseAim(m, team, lvl) {
   const lo = team === BLUE ? -Math.PI + MIN_ELEV : MIN_ELEV;
   const hi = team === BLUE ? -MIN_ELEV : Math.PI - MIN_ELEV;
   const foeHp = m.castles[1 - team].hp;
+  // With the turn limit close, the sharper opponents take the sure chip off the castle:
+  // a match that goes the distance is decided on castle health.
+  const castleWorth = lvl.lookahead > 0 && TURN_LIMIT - m.turn <= 5 ? 8 : 2;
   let best = null;
   for (let i = 0; i < lvl.aimSamples; i++) {
     const ang = lerp(lo, hi, (i + Math.random()) / lvl.aimSamples);
     const r = simulateVolley(m, team, ang, lvl.lead);
-    let score = r.meat + r.castle * 2 + rand(2);
+    let score = r.meat + r.castle * castleWorth + rand(2);
     if (r.castle >= foeHp) score += 1000;
     if (!best || score > best.score) best = { ang, score };
   }
   return clamp(best.ang + rand(-lvl.aimError, lvl.aimError), lo, hi);
 }
+
+// What a healthy squad is worth on the road when weighing up a position. A giant fights
+// no better than warriors, so its extra price only pays off against towers.
+const WORTH = { melee: 20, archer: 16, giant: 20 };
 
 const newSquad = (team, kind, slot) => {
   const u = UNITS[kind];
@@ -31,23 +38,26 @@ const newSquad = (team, kind, slot) => {
 };
 
 // Smartest free slot for a troop card, judged by where the squad stands after its free
-// step. Squads strike as they arrive, so the aim is to land just outside the enemy's
-// reach and get the charge in first. Archers also want a front-liner ahead of them.
+// step. Landing in reach of something means a free blow; landing just short of the enemy
+// hands them the first one. Archers also want a front-liner right ahead of them.
 function bestSlot(m, team, li, kind, slots) {
   const lane = m.lanes[li], home = homeSlot(team);
   const toHome = slot => Math.abs(slot - home);
   let best = null;
   for (const slot of slots) {
-    const land = advance(lane, newSquad(team, kind, slot));
+    const sq = newSquad(team, kind, slot);
+    sq.slot = advance(lane, sq);
+    const hit = strikeAct(lane, sq);
     let foe = null, d = Infinity;
     for (const f of lane.squads) {
-      const ahead = toHome(f.slot) - toHome(land);
+      const ahead = toHome(f.slot) - toHome(sq.slot);
       if (f.team !== team && ahead > 0 && ahead < d) { d = ahead; foe = f; }
     }
     const shielded = lane.squads.some(q =>
-      q.team === team && q.kind !== 'archer' && toHome(q.slot) > toHome(land) && toHome(q.slot) - toHome(land) <= 3);
-    let score = toHome(land) * 0.5;
-    if (foe && !shielded) score += d <= foe.speed + foe.range ? (kind === 'archer' ? -12 : -6) : 6;
+      q.team === team && q.kind !== 'archer' && toHome(q.slot) > toHome(sq.slot) && toHome(q.slot) - toHome(sq.slot) <= 2);
+    let score = toHome(sq.slot) * 0.5;
+    if (hit) score += hit.kind === 'castle' ? 16 : 10;
+    else if (foe && !shielded && d <= foe.speed + foe.range) score -= kind === 'archer' ? 10 : 4;
     if (kind === 'archer' && shielded) score += 10;
     if (!best || score > best.score) best = { slot, score };
   }
@@ -73,7 +83,7 @@ function lookAhead(m, lanes, team, rounds) {
   if (dealt >= m.castles[foe].hp) score += 400;
   if (taken >= m.castles[team].hp) score -= 400;
   for (const lane of lanes) {
-    for (const q of lane.squads) score += (q.team === team ? 1 : -1) * (q.hp / q.maxHp) * CARDS[q.kind].cost * 0.5;
+    for (const q of lane.squads) score += (q.team === team ? 1 : -1) * (q.hp / q.maxHp) * WORTH[q.kind];
     for (const t of lane.towers) score += (t.team === team ? 1 : -1) * (t.hp / t.maxHp) * 8;
     score += 0.4 * (Math.abs(frontier(lane, team) - homeSlot(team)) - Math.abs(frontier(lane, foe) - homeSlot(foe)));
   }
@@ -91,10 +101,12 @@ function deepLaneOptions(m, team, lvl) {
       for (const li of [0, 1]) {
         for (const slot of deploySlots(m, team, li)) {
           const lanes = copy(), sq = newSquad(team, id, slot);
-          sq.slot = advance(lanes[li], sq);
           lanes[li].squads.push(sq);
+          // The squad steps and strikes as it lands; a blow on the castle counts at once.
+          const hit = dropStep(lanes[li], sq);
+          const now = hit && hit.kind === 'castle' ? hit.dmg * 1.5 + (hit.dmg >= m.castles[1 - team].hp ? 400 : 0) : 0;
           // Dearer troops have to earn their extra cost.
-          const score = 30 + lookAhead(m, lanes, team, lvl.lookahead) - base - (CARDS[id].cost - 40) * 0.5 + rand(2);
+          const score = 30 + now + lookAhead(m, lanes, team, lvl.lookahead) - base - (CARDS[id].cost - CARDS.melee.cost) + rand(2);
           opts.push({ idx, target: { lane: li, slot }, score });
         }
       }
@@ -141,7 +153,7 @@ export function chooseCard(m, team, lvl) {
   // Upgrades are judged by what they should earn back over the turns still to come,
   // against what they cost, and are a luxury while the gate is under threat.
   const horizon = Math.max(0, Math.min(TURN_LIMIT, 17) - m.turn);
-  const perArrow = T.shots ? T.hunted / T.shots : 28;
+  const perArrow = T.shots ? T.hunted / T.shots : 13;
   const upgradeScore = id => {
     const gain = id === 'arrow' ? perArrow * Math.pow(0.8, T.arrows - 1) : T.arrows * perArrow * 0.3;
     return 28 + 12 * (gain * horizon) / cardCost(T, id) + (lvl.eco ?? 0) - danger * 50 + rand(6);
@@ -154,7 +166,7 @@ export function chooseCard(m, team, lvl) {
     if (zone === 'base') {
       const score = upgradeScore(id), short = cardCost(T, id) - T.meat;
       if (short <= 0) opts.push({ idx, target: basePoint(m, team), score });
-      else if (short <= 45 && danger < 0.35) saveFor = Math.max(saveFor, score - 8);
+      else if (short <= CARDS.melee.cost + 5 && danger < 0.35) saveFor = Math.max(saveFor, score - 8);
       return;
     }
     if (cardBlocker(m, team, id)) return;
@@ -169,9 +181,9 @@ export function chooseCard(m, team, lvl) {
         if (info.threat) score += Math.max(0, info.threat - info.own) * 0.5 + info.urgency * 30;
         else score += 12; // open road to the castle
         if (toHome(info.reach) >= LANE_LEN - 5) score += 10; // keep a siege fed
-        // Pick the right tool: archers for giants, giants for towers, warriors for archers.
-        if (id === 'archer') score += info.foes.giant * 16 - (info.front ? 0 : 12);
-        if (id === 'giant') score += (info.foeTower ? 18 : 0) - info.foes.archer * 14 - 6;
+        // Pick the right tool: giants only for towers, archers only behind a front-liner.
+        if (id === 'archer') score -= info.front ? 0 : 12;
+        if (id === 'giant') score += info.foeTower ? 22 : -10;
         if (id === 'melee') score += info.foes.archer * 6;
         opts.push({ idx, target: { lane: li, slot: spot.slot }, score, slots });
       }
