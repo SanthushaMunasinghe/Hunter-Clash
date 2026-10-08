@@ -1,6 +1,6 @@
 import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT } from './config.js';
 import { cardBlocker, cardCost } from './cards.js';
-import { cardIcon, meatIconURL, arrowIconURL, damageIconURL } from './sprites.js';
+import { cardIcon, meatIconURL, arrowIconURL, damageIconURL, starIconURL } from './sprites.js';
 
 const $ = id => document.getElementById(id);
 
@@ -22,7 +22,7 @@ export class UI {
     const meat = meatIconURL();
     this.icons = {};
     for (const id in CARDS) this.icons[id] = cardIcon(id);
-    const icons = { 'meat-ic': meat, 'arrow-ic': arrowIconURL(), 'dmg-ic': damageIconURL() };
+    const icons = { 'meat-ic': meat, 'arrow-ic': arrowIconURL(), 'dmg-ic': damageIconURL(), 'pts-ic': starIconURL() };
     for (const cls in icons) document.querySelectorAll('img.' + cls).forEach(img => { img.src = icons[cls]; });
 
     this.cardEls = [];
@@ -106,9 +106,9 @@ export class UI {
     this.nextLevel = won && !last ? m.levelIdx + 1 : m.levelIdx;
     $('result').classList.toggle('lost', !won);
     $('result-title').textContent = won ? 'VICTORY!' : 'DEFEAT';
-    const [mine, theirs] = m.castles.map(c => c.hp);
+    const mine = this.game.points(m, BLUE), theirs = this.game.points(m, RED);
     $('result-sub').textContent = m.over.how === 'time'
-      ? `Time is up. Your castle ${mine}, ${name} ${theirs}.`
+      ? `Time is up. You scored ${mine} points to ${name}'s ${theirs} (castle health plus damage dealt).`
       : won ? `You beat ${name} in ${m.turn} turns.` : `${name} took your castle on turn ${m.turn}.`;
     $('btn-again').textContent = !won ? 'TRY AGAIN' : last ? 'PLAY AGAIN' : `NEXT: ${LEVELS[this.nextLevel].name}`;
     this.sfx.play(won ? 'win' : 'lose');
@@ -189,6 +189,8 @@ export class UI {
     for (const [team, tag] of [[BLUE, 'blue'], [RED, 'red']]) {
       this.put('arrows' + team, m.teams[team].arrows, v => { $('arrows-' + tag).textContent = v; });
       this.put('dmg' + team, m.teams[team].damage, v => { $('dmg-' + tag).textContent = v; });
+      // Points: castle health plus damage dealt. They decide a match that reaches the turn limit.
+      this.put('pts' + team, this.game.points(m, team), v => { $('pts-' + tag).textContent = v; });
     }
 
     let hint = '';

@@ -1,4 +1,4 @@
-import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, UPGRADE } from './config.js';
+import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, UPGRADE, SHIELD_TURNS } from './config.js';
 import * as S from './sprites.js';
 import { cpOwner, homeSlot, towerAt } from './rules.js';
 import { previewPath } from './arrow.js';
@@ -294,7 +294,11 @@ export class Renderer {
     for (const a of m.animals) add(a.y + a.r * 0.6, () => S.drawAnimal(ctx, a, t));
     for (const c of b.castles) {
       const st = m.castles[c.team];
-      add(c.drawY + 20, () => S.drawCastle(ctx, c.team, c.x, c.drawY, st.hp, st.flash));
+      add(c.drawY + 20, () => {
+        S.drawCastle(ctx, c.team, c.x, c.drawY, st.hp, st.flash);
+        const shield = m.teams[c.team].shield;
+        if (shield > 0 && st.hp > 0) S.drawShield(ctx, c.x, c.drawY, c.team, shield, t);
+      });
     }
 
     list.sort((p, q) => p.y - q.y);
@@ -518,7 +522,8 @@ export class Renderer {
     if (!tg || !d.onBoard) return;
     const b = m.board, zone = CARDS[d.id].zone;
     if (zone === 'base') {
-      if (tg.valid) S.label(ctx, d.id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, tg.x, tg.y - 74, 18, '#ffcf3f');
+      const what = { arrow: '+1 ARROW', damage: `+${UPGRADE.damage} DAMAGE`, shield: `SHIELD ${SHIELD_TURNS} TURNS` }[d.id];
+      if (tg.valid) S.label(ctx, what, tg.x, tg.y - 74, 18, '#ffcf3f');
     } else if (tg.valid) {
       ctx.globalAlpha = 0.85;
       if (zone === 'lane') {

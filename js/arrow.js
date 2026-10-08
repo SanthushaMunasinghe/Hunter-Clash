@@ -101,7 +101,7 @@ function dryArrow(m, team, angle, obs, damage, delay, maxContacts, points) {
       return 'stop';
     }
     if (o.kind === 'castle') {
-      res.castle += ARROW.castleDamage;
+      if (!m.teams[1 - team].shield) res.castle += ARROW.castleDamage;
       return 'stop';
     }
   };
@@ -124,7 +124,7 @@ export function simulateVolley(m, team, angle, lead = false) {
   for (let i = 0; i < T.arrows; i++) {
     const r = dryArrow(m, team, angle, obs, T.damage, i * ARROW.volleyGap, Infinity, null);
     total.meat += r.meat;
-    total.castle = Math.max(total.castle, r.castle); // one arrow per volley hurts a castle
+    total.castle += r.castle;
   }
   return total;
 }

@@ -1,5 +1,5 @@
 import {
-  BLUE, RED, CHECKPOINTS, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT,
+  BLUE, RED, CHECKPOINTS, CASTLE, ARROW, CARDS, UPGRADE, SHIELD_TURNS, LEVELS, TURN_LIMIT, POINTS,
 } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
@@ -83,7 +83,7 @@ export class Game {
         const left = TURN_LIMIT - m.turn;
         if (left === 4 || left === 0 || left < 0) {
           this.emit('banner', left > 0 ? `${left + 1} TURNS LEFT` : left === 0 ? 'FINAL TURN' : 'TIEBREAK');
-          this.emit('toast', 'When time is up, the healthier castle wins');
+          this.emit('toast', 'When time is up, the side with more points wins');
           await this.sleep(m, 1.3);
         }
       }
@@ -119,6 +119,9 @@ export class Game {
     m.phase = 'fly';
     await this.fire(m, team, angle);
     if (m.over) return;
+    // That was one of the hunts the other side's shield, if it has one up, was good for.
+    const foe = m.teams[1 - team];
+    if (foe.shield > 0) foe.shield--;
     await this.sleep(m, 0.2);
 
     // Units on the board attack or step forward.
@@ -202,7 +205,8 @@ export class Game {
     let p;
     if (ent.upgrade) {
       p = basePoint(m, team);
-      this.fx.text(p.x, p.y - 30, id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, '#ffcf3f', false, 17);
+      const what = { arrow: '+1 ARROW', damage: `+${UPGRADE.damage} DAMAGE`, shield: `SHIELD ${SHIELD_TURNS} TURNS` }[id];
+      this.fx.text(p.x, p.y - 30, what, '#ffcf3f', false, 17);
       this.sfx.play('capture');
     } else if (CARDS[id].zone === 'lane') {
       const lane = m.lanes[ent.lane], from = ent.slot;
@@ -227,7 +231,7 @@ export class Game {
   // Looses the team's whole quiver down one line, an arrow every ARROW.volleyGap seconds.
   // Resolves once the last one has landed.
   fire(m, team, angle) {
-    m.volley = { team, angle, left: m.teams[team].arrows, wait: 0, struck: false };
+    m.volley = { team, angle, left: m.teams[team].arrows, wait: 0 };
     return new Promise(res => { m.wait.arrow = res; });
   }
 
@@ -285,8 +289,13 @@ export class Game {
       return 'stop';
     }
     if (o.kind === 'castle') {
-      if (m.volley && !m.volley.struck) this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
-      if (m.volley) m.volley.struck = true;
+      if (m.teams[1 - ar.team].shield > 0) {
+        this.fx.ring(ar.x, ar.y, TEAM_RING[1 - ar.team], 6, 30, 0.35);
+        this.fx.text(ar.x, ar.y - 16, 'BLOCKED', TEAM_TEXT[1 - ar.team], false, 13);
+        this.sfx.play('bounce');
+      } else {
+        this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
+      }
       return 'stop';
     }
     this.sfx.play('bounce');
@@ -321,24 +330,33 @@ export class Game {
 
   hurtCastle(m, team, dmg) {
     if (m.over) return;
-    const c = m.castles[team], p = m.board.castles[team];
+    const c = m.castles[team], p = m.board.castles[team], heavy = dmg >= 5;
+    m.teams[1 - team].dealt += Math.min(dmg, c.hp);
+    m.teams[1 - team].dealtCastle += Math.min(dmg, c.hp);
     c.hp = Math.max(0, c.hp - dmg);
-    c.flash = 0.25;
-    this.fx.shake = Math.max(this.fx.shake, 5);
-    this.fx.text(p.x + rand(-24, 24), p.drawY - 70, '-' + dmg, '#ffd24a', false, 20);
-    this.fx.puff(p.x + rand(-30, 30), p.drawY - 20, '#e9e2cf', 8, 80);
-    this.sfx.play('castle');
+    c.flash = heavy ? 0.25 : 0.1;
+    this.fx.shake = Math.max(this.fx.shake, heavy ? 5 : 1.5);
+    this.fx.text(p.x + rand(-24, 24), p.drawY - 70, '-' + dmg, '#ffd24a', false, heavy ? 20 : 14);
+    this.fx.puff(p.x + rand(-30, 30), p.drawY - 20, '#e9e2cf', heavy ? 8 : 3, 80);
+    this.sfx.play(heavy ? 'castle' : 'thud');
     if (c.hp > 0) return;
     this.fx.shake = 12;
     for (let i = 0; i < 5; i++) this.fx.puff(p.x + rand(-45, 45), p.drawY + rand(-60, 10), '#e9e2cf', 10, 130);
     this.finish(m, 1 - team, 'castle');
   }
 
+  // A side's points if the match goes the distance: what is left of its castle, plus
+  // every point of damage it has dealt to enemy troops, towers and castle.
+  points(m, team) {
+    const T = m.teams[team];
+    return Math.round(m.castles[team].hp * POINTS.health + T.dealtCastle * POINTS.castle + (T.dealt - T.dealtCastle) * POINTS.units);
+  }
+
   // Who is ahead when time runs out: > 0 blue, < 0 red, 0 dead level.
-  // Castle health decides, then checkpoints held, then meat in the bank.
+  // Points decide, then checkpoints held, then meat in the bank.
   standing(m) {
     const cps = team => m.lanes.reduce((n, lane) => n + CHECKPOINTS.filter(c => cpOwner(lane, c) === team).length, 0);
-    return m.castles[BLUE].hp - m.castles[RED].hp
+    return this.points(m, BLUE) - this.points(m, RED)
       || cps(BLUE) - cps(RED)
       || m.teams[BLUE].meat - m.teams[RED].meat;
   }
@@ -353,6 +371,7 @@ export class Game {
 
   hurtSquad(m, li, s, dmg) {
     const p = m.board.lanePoint(li, s.slot);
+    m.teams[1 - s.team].dealt += Math.min(dmg, s.hp);
     s.hp -= dmg;
     s.flash = 0.2;
     this.fx.text(p.x, p.y - 22, '-' + dmg, TEAM_TEXT[s.team], false, 13);
@@ -364,6 +383,7 @@ export class Game {
 
   hurtTower(m, li, tw, dmg) {
     const p = m.board.lanePoint(li, tw.slot);
+    m.teams[1 - tw.team].dealt += Math.min(dmg, tw.hp);
     tw.hp -= dmg;
     tw.flash = 0.2;
     this.fx.text(p.x, p.y - 56, '-' + dmg, TEAM_TEXT[tw.team], false, 13);

@@ -839,6 +839,70 @@ export const meatIconURL = () => iconURL(72, g => meatIcon(g, 40, 36, 2.3));
 export const arrowIconURL = () => iconURL(72, g => drawArrow(g, 36, 36, -Math.PI / 4, BLUE, 1.7));
 export const damageIconURL = () => iconURL(72, g => burst(g, 36, 36, 30));
 
+function star(ctx, x, y, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * TAU - Math.PI / 2, k = i % 2 ? 0.45 : 1;
+    ctx.lineTo(x + Math.cos(a) * r * k, y + Math.sin(a) * r * k);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#ffcf3f';
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = r * 0.14;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+export const starIconURL = () => iconURL(72, g => star(g, 36, 38, 30));
+
+function shieldShape(ctx, x, y, k) {
+  ctx.beginPath();
+  ctx.moveTo(x - 14 * k, y - 16 * k);
+  ctx.lineTo(x + 14 * k, y - 16 * k);
+  ctx.lineTo(x + 14 * k, y + 2 * k);
+  ctx.quadraticCurveTo(x + 12 * k, y + 14 * k, x, y + 20 * k);
+  ctx.quadraticCurveTo(x - 12 * k, y + 14 * k, x - 14 * k, y + 2 * k);
+  ctx.closePath();
+}
+
+function shieldBadge(ctx, x, y, k, team) {
+  const c = TEAM_COL[team];
+  shieldShape(ctx, x, y, k);
+  ctx.fillStyle = c.main;
+  ctx.fill();
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = c.light;
+  ctx.fillRect(x - 14 * k, y - 16 * k, 14 * k, 40 * k);
+  ctx.restore();
+  shieldShape(ctx, x, y, k);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.2 * k;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
+// The bubble over a castle that is shielded from arrows, with the enemy hunts it has left.
+const SHIELD_RGB = ['143,203,255', '255,170,170'];
+export function drawShield(ctx, x, y, team, turns, t) {
+  const rgb = SHIELD_RGB[team], pulse = 0.5 + 0.5 * Math.sin(t * 4), cy = y - 30 * CASTLE.scale;
+  ctx.fillStyle = `rgba(${rgb},${0.18 + pulse * 0.08})`;
+  ellipse(ctx, x, cy, 70, 64);
+  ctx.fill();
+  ctx.strokeStyle = `rgba(${rgb},0.95)`;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(x, cy, 58, -2.5, -1.8);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  shieldBadge(ctx, x + 58, cy - 44, 0.62, team);
+  label(ctx, String(turns), x + 58, cy - 44, 13);
+}
+
 export function cardIcon(id) {
   const c = document.createElement('canvas');
   c.width = c.height = 160;
@@ -855,6 +919,8 @@ export function cardIcon(id) {
   } else if (id === 'arrow') {
     drawArrow(g, 26, 52, -Math.PI / 4, BLUE, 1.6);
     drawArrow(g, 46, 40, -Math.PI / 4, BLUE, 1.6);
+  } else if (id === 'shield') {
+    shieldBadge(g, 40, 40, 1.7, BLUE);
   } else {
     burst(g, 40, 42, 30);
     drawArrow(g, 40, 44, -Math.PI / 4, BLUE, 1.2);

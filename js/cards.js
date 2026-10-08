@@ -1,4 +1,4 @@
-import { CARDS, CARD_ORDER, HAND_SIZE, START_MEAT, UNITS, ARROW, UPGRADE } from './config.js';
+import { CARDS, CARD_ORDER, HAND_SIZE, START_MEAT, UNITS, ARROW, UPGRADE, SHIELD_TURNS } from './config.js';
 import { dist } from './utils.js';
 import { deploySlots, towerSpots, dirOf } from './rules.js';
 
@@ -11,6 +11,9 @@ export function newTeam() {
     meat: START_MEAT, hand: new Array(HAND_SIZE).fill(null),
     arrows: 1, damage: ARROW.damage, bought: { arrow: 0, damage: 0 },
     shots: 0, hunted: 0, // arrows loosed and meat they brought in, over the whole match
+    shield: 0,           // enemy hunts the castle is still shielded from
+    dealt: 0,            // damage done to enemy troops, towers and castle; counts at time-up
+    dealtCastle: 0,      // the part of that done to the castle
   };
 }
 
@@ -91,9 +94,10 @@ export function playCard(m, team, idx, target) {
     };
     m.lanes[target.lane].towers.push(ent);
   } else {
-    if (id === 'arrow') T.arrows++;
+    if (id === 'shield') T.shield = SHIELD_TURNS;
+    else if (id === 'arrow') T.arrows++;
     else T.damage += UPGRADE.damage;
-    T.bought[id]++;
+    if (id in T.bought) T.bought[id]++;
     ent = { upgrade: id };
   }
   T.meat -= cost;

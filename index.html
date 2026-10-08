@@ -37,7 +37,8 @@
           </div>
           <div class="stats">
             <span><img class="arrow-ic" alt="arrows"><b id="arrows-blue">1</b></span>
-            <span><img class="dmg-ic" alt="hunting damage"><b id="dmg-blue">10</b></span>
+            <span><img class="dmg-ic" alt="hunting damage"><b id="dmg-blue">5</b></span>
+            <span><img class="pts-ic" alt="points"><b id="pts-blue">100</b></span>
           </div>
         </div>
         <div class="turn" id="turn"><b id="turn-num">TURN 1</b><span id="turn-who">GET READY</span></div>
@@ -50,7 +51,8 @@
           <div class="stats">
             <span><img class="meat-ic" alt="meat"><b id="emeat-num">0</b></span>
             <span><img class="arrow-ic" alt="arrows"><b id="arrows-red">1</b></span>
-            <span><img class="dmg-ic" alt="hunting damage"><b id="dmg-red">10</b></span>
+            <span><img class="dmg-ic" alt="hunting damage"><b id="dmg-red">5</b></span>
+            <span><img class="pts-ic" alt="points"><b id="pts-red">100</b></span>
           </div>
         </div>
       </div>
@@ -102,6 +104,7 @@
         <ul>
           <li><b>Prey.</b> Quick animals (gold number) keep to the middle of the field, die to one hit and pay well, but you have to lead them. Slow ones graze near the castles and pay a little per hit. Richer prey arrives every 5 turns.</li>
           <li><b>+1 Arrow / +Damage</b> go on your castle. More arrows per hunt, or more meat from each hit on slow prey. Each gets dearer every time.</li>
+          <li><b>Shield</b> goes on your castle and keeps arrows off it for the enemy's next 2 hunts. An arrow that reaches a castle only chips 1.</li>
           <li><b>Warriors</b> are the all-round fighters.</li>
           <li><b>Archers</b> shoot 2 slots ahead, but die to a single blow from anything.</li>
           <li><b>Giants</b> fight like warriors but are slower and dearer. Their job is towers: 2 blows.</li>
@@ -109,7 +112,7 @@
           <li><b>Tower</b> sits on a checkpoint you hold and blocks the road. Without a giant it takes warriors and archers 6 blows to break.</li>
           <li>Troops go on either road, from your gate up to the furthest checkpoint your units hold. They step forward as they land and strike if that puts an enemy in reach.</li>
         </ul>
-        <p>Break the red castle to win. After 25 turns the healthier castle wins.</p>
+        <p>Break the red castle to win. If both castles stand after 25 turns, the star decides: castle health plus all the damage you have dealt.</p>
         <button class="btn primary" id="btn-help-close">GOT IT</button>
       </div>
     </div>

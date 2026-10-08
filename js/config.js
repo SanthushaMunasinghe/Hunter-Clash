@@ -27,9 +27,9 @@ export const CASTLE = {
 };
 
 // An arrow bounces off the field edge up to `bounces` times and is spent on the first
-// animal it hits. damage is the starting hunting damage. castleDamage never grows, and
-// only one arrow of a volley can hurt the castle, however many reach it.
-export const ARROW = { speed: 800, radius: 6, step: 3, bounces: 5, damage: 5, castleDamage: 5, volleyGap: 0.16 };
+// animal it hits. damage is the starting hunting damage. castleDamage is the token chip
+// an arrow takes off the enemy castle if it gets that far; it never grows.
+export const ARROW = { speed: 800, radius: 6, step: 3, bounces: 5, damage: 5, castleDamage: 1, volleyGap: 0.16 };
 
 // Lane troops. speed: slots covered in one step. range: how many slots ahead it can hit;
 // nothing reaches further than 2. dmg: damage per strike by target kind.
@@ -74,17 +74,24 @@ export const CARDS = {
   tower: { name: 'Tower', cost: 30, zone: 'checkpoint' },
   arrow: { name: '+1 Arrow', cost: 40, step: 30, zone: 'base' },
   damage: { name: '+Damage', cost: 25, step: 20, zone: 'base' },
+  shield: { name: 'Shield', cost: 10, zone: 'base' },
 };
 // The hand, in screen order. Every card comes back each turn and can be played once.
-export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage'];
+export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage', 'shield'];
 export const HAND_SIZE = CARD_ORDER.length;
 export const START_MEAT = 15;
 export const UPGRADE = { damage: 2 }; // hunting damage added per +Damage card
+export const SHIELD_TURNS = 2;       // enemy hunts a Shield card keeps arrows off your castle for
 
-// A match never runs long: once this many turns are up, the healthier castle wins.
-// Level castles go to whoever holds more checkpoints, then more meat; if even that is
-// level, play goes on a round at a time.
+// A match never runs long. If both castles stand once this many turns are up, it goes
+// on points: your castle's remaining health plus all the damage your side has dealt to
+// enemy troops, towers and castle. Level points go to whoever holds more checkpoints,
+// then more meat; if even that is level, play goes on a round at a time.
 export const TURN_LIMIT = 25;
+// What a point of each is worth at time-up. With everything on 1 the damage dealt to
+// troops over a match (hundreds) counts for far more than castle health (100 at most);
+// raise `health` and `castle` to make the castles matter more.
+export const POINTS = { health: 1, castle: 1, units: 1 };
 
 // Opponents differ only in how well they play; every stat and price is identical.
 // aimSamples: angles tried per shot. aimError: random wobble in radians.

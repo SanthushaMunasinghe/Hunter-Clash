@@ -14,9 +14,8 @@ export function chooseAim(m, team, lvl) {
   const lo = team === BLUE ? -Math.PI + MIN_ELEV : MIN_ELEV;
   const hi = team === BLUE ? -MIN_ELEV : Math.PI - MIN_ELEV;
   const foeHp = m.castles[1 - team].hp;
-  // With the turn limit close, the sharper opponents take the sure chip off the castle:
-  // a match that goes the distance is decided on castle health.
-  const castleWorth = lvl.lookahead > 0 && TURN_LIMIT - m.turn <= 5 ? 8 : 2;
+  // A chip off the castle is worth a little: it is a point for us and one off them.
+  const castleWorth = 2;
   let best = null;
   for (let i = 0; i < lvl.aimSamples; i++) {
     const ang = lerp(lo, hi, (i + Math.random()) / lvl.aimSamples);
@@ -165,6 +164,13 @@ export function chooseCard(m, team, lvl) {
   T.hand.forEach((id, idx) => {
     if (!id) return;
     const zone = CARDS[id].zone;
+    if (id === 'shield') {
+      // Worth it when they have a quiver to empty at us and time or health is short.
+      const foe = m.teams[1 - team], frail = m.castles[team].hp <= 15;
+      const score = 6 + foe.arrows * 5 + (TURN_LIMIT - m.turn <= 5 ? 12 : 0) + (frail ? 25 : 0) + rand(6);
+      if (!T.shield && (foe.arrows >= 3 || frail) && !cardBlocker(m, team, id)) opts.push({ idx, target: basePoint(m, team), score });
+      return;
+    }
     if (zone === 'base') {
       const score = upgradeScore(id), short = cardCost(T, id) - T.meat;
       if (short <= 0) opts.push({ idx, target: basePoint(m, team), score });
