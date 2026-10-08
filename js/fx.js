@@ -15,7 +15,9 @@ export class Fx {
   }
 
   text(x, y, str, color = '#fff', meat = false, size = 16) {
-    this.texts.push({ x, y, str, color, meat, size, t: 0, life: 0.95 });
+    const tx = { x, y, str, color, meat, size, t: 0, life: 0.95 };
+    this.texts.push(tx);
+    return tx;
   }
 
   puff(x, y, color, n = 8, speed = 70) {

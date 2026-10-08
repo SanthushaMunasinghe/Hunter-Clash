@@ -4,8 +4,8 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 
 Each turn has two states:
 
-1. **Hunt** – the card panel slides away; drag in the strip under your castle to pull back, then release. Every arrow you own flies down that line, one after another. An arrow bounces off the field edge (up to 5 times) and is spent on the first animal it hits. When the volley lands, each of your squads strikes whatever is in reach, steps forward if the way is clear, and strikes again where it stops.
-2. **Spend** – each turn deals you four different cards out of six, each playable once that turn. Drag one onto the board:
+1. **Hunt** – the card panel slides away; drag in the strip under your castle to pull back, then release. Every arrow you own is loosed at once, side by side along that line and fanning out very slightly. An arrow bounces off the field edge (up to 5 times) and is spent on the first animal it hits. When the volley lands, each of your squads strikes whatever is in reach, steps forward if the way is clear, and strikes again where it stops.
+2. **Spend** – each turn deals you four different cards out of six. Playing one draws a new card into its place straight away, so you can keep spending while the meat lasts. Drag one onto the board:
    - **Warriors**, **Archers**, **Giant** – onto either road.
    - **Tower** – onto a checkpoint you hold.
    - **+1 Arrow**, **+Damage** – onto your own castle.
@@ -16,12 +16,14 @@ The deal is random but weighted. Early on it is mostly Warriors, Archers and the
 
 The herd is small, about six animals. A kill comes back two rounds later.
 
-- **Quick prey** (rabbit, deer, stag; gold number) dies to any hit and pays its whole bounty at once. It keeps to the middle of the field, far from both castles, moves fast, and the aim preview does not lead it for you.
-- **Slow prey** (sheep, cow, bull, bear, dino) pays a share of its bounty per hit, in proportion to hunting damage, and takes several hits. The cheapest kinds graze nearest the castles; richer ones roam further out.
+The number over an animal is its health and its meat in one. An arrow takes its damage off that number and you bank exactly as much, so `12 DMG` means +12 meat per arrow that lands (or whatever the animal has left). While you aim, the damage per arrow is shown over your castle, with `X2`, `X3`... when the volley has more than one arrow.
+
+- **Quick prey** (rabbit, deer, stag; gold number) is the exception: any hit takes all of it. It keeps to the middle of the field, far from both castles, moves fast, and the aim preview does not lead it for you.
+- **Slow prey** (sheep, cow, bull, bear, dino) lasts several hits. The cheapest kinds graze nearest the castles; richer ones hold more meat and roam further out.
 - Nothing ever stands still.
 - Richer prey arrives every 5 turns: cow on 6, bull and deer on 11, bear on 16, dino and stag on 21.
 
-**+1 Arrow** adds an arrow to every volley. **+Damage** adds 2 hunting damage (you start on 5), so slow prey pays more per hit. Both get dearer each time you buy them. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
+**+1 Arrow** adds an arrow to every volley. **+Damage** adds 5 hunting damage (you start on 12), so every arrow brings in more. Both get dearer each time you buy them. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
 
 ## Troops
 

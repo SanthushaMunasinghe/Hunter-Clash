@@ -284,7 +284,7 @@ img { -webkit-user-drag: none; }
 .card.locked { filter: brightness(0.72) saturate(0.6); cursor: default; }
 .card.off { filter: grayscale(0.85) brightness(0.8); cursor: default; }
 .card.dragging { transform: translateY(-8px) scale(0.94); opacity: 0.45; }
-/* Played this turn: the slot stays empty until the next deal. */
+/* Nothing dealt into this slot yet. */
 .card.empty { background: rgba(31, 36, 51, 0.35); border-style: dashed; border-color: rgba(255, 255, 255, 0.35); box-shadow: none; cursor: default; }
 .card.empty > * { visibility: hidden; }
 

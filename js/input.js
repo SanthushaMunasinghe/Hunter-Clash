@@ -79,7 +79,7 @@ export class Input {
     let angle;
     if (ay >= 0) angle = ax < 0 ? -Math.PI + MIN_ELEV : -MIN_ELEV;
     else angle = clamp(Math.atan2(ay, ax), -Math.PI + MIN_ELEV, -MIN_ELEV);
-    m.aim = { team: BLUE, angle, pull: Math.min(len, 90), path: null };
+    m.aim = { team: BLUE, angle, pull: Math.min(len, 90), paths: null };
   }
 
   aimUp(e, fire) {
@@ -103,7 +103,7 @@ export class Input {
       return;
     }
     const id = m.teams[BLUE].hand[idx];
-    if (!id) return; // already played this turn
+    if (!id) return; // nothing dealt yet
     const blocker = cardBlocker(m, BLUE, id);
     if (blocker) {
       const short = cardCost(m.teams[BLUE], id) - m.teams[BLUE].meat;

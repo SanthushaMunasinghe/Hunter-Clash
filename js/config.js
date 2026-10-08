@@ -27,9 +27,16 @@ export const CASTLE = {
 };
 
 // An arrow bounces off the field edge up to `bounces` times and is spent on the first
-// animal it hits. damage is the starting hunting damage. castleDamage is the token chip
-// an arrow takes off the enemy castle if it gets that far; it never grows.
-export const ARROW = { speed: 800, radius: 6, step: 3, bounces: 5, damage: 5, castleDamage: 1, volleyGap: 0.16 };
+// animal it hits. damage is the starting hunting damage: the meat one arrow takes off an
+// animal. castleDamage is the token chip an arrow takes off the enemy castle if it gets
+// that far; it never grows.
+// A volley leaves the bow all at once: arrows side by side, `rank` px apart across the
+// aim line, each turned `fan` radians out from its neighbour. Past `abreast` arrows the
+// rank closes up instead of growing any wider.
+export const ARROW = {
+  speed: 800, radius: 6, step: 3, bounces: 5, damage: 12, castleDamage: 1,
+  rank: 12, fan: 0.01, abreast: 5,
+};
 
 // Lane troops. speed: slots covered in one step. range: how many slots ahead it can hit;
 // nothing reaches further than 2. dmg: damage per strike by target kind.
@@ -43,21 +50,23 @@ export const UNITS = {
   tower: { hp: 60, range: 2, dmg: { melee: 4, archer: 4, giant: 4 } },
 };
 
-// Prey. hp is how much hunting damage it soaks up; meat is what it pays out in total,
-// shared across hits in proportion to damage. Fast animals die to any hit and pay well
-// but have to be led; slow ones are easy targets that pay a little per hit.
+// Prey. meat is an animal's health and its bounty in one: the number over its head. An
+// arrow takes its hunting damage off that number and the hunter banks exactly as much,
+// so the animal is dead when it runs out. Quick prey (fast) is the exception: any hit
+// takes the lot. It pays well in one go but has to be led; slow prey is an easy target
+// that lasts several hits.
 // from: the turn it first appears. Richer prey arrives every 5 turns.
 // band: where it roams, as a fraction of the way from the middle of the field to a base.
 // Cheap prey grazes near the castles; the quick kinds keep to the middle, far from both.
 export const ANIMALS = {
-  sheep: { hp: 20, meat: 48, r: 15, speed: 15, from: 1, band: [0.5, 0.86] },
-  rabbit: { hp: 5, meat: 18, r: 12, speed: 46, fast: true, from: 1, band: [0, 0.26] },
-  cow: { hp: 25, meat: 70, r: 17, speed: 14, from: 6, band: [0.42, 0.8] },
-  bull: { hp: 30, meat: 96, r: 19, speed: 13, from: 11, band: [0.32, 0.72] },
-  deer: { hp: 5, meat: 28, r: 14, speed: 56, fast: true, from: 11, band: [0, 0.26] },
-  bear: { hp: 40, meat: 144, r: 23, speed: 12, from: 16, band: [0.22, 0.62] },
-  dino: { hp: 50, meat: 220, r: 27, speed: 10, from: 21, band: [0.08, 0.5] },
-  stag: { hp: 5, meat: 42, r: 15, speed: 64, fast: true, from: 21, band: [0, 0.26] },
+  sheep: { meat: 48, r: 15, speed: 15, from: 1, band: [0.5, 0.86] },
+  rabbit: { meat: 18, r: 12, speed: 46, fast: true, from: 1, band: [0, 0.26] },
+  cow: { meat: 70, r: 17, speed: 14, from: 6, band: [0.42, 0.8] },
+  bull: { meat: 96, r: 19, speed: 13, from: 11, band: [0.32, 0.72] },
+  deer: { meat: 28, r: 14, speed: 56, fast: true, from: 11, band: [0, 0.26] },
+  bear: { meat: 144, r: 23, speed: 12, from: 16, band: [0.22, 0.62] },
+  dino: { meat: 220, r: 27, speed: 10, from: 21, band: [0.08, 0.5] },
+  stag: { meat: 42, r: 15, speed: 64, fast: true, from: 21, band: [0, 0.26] },
 };
 // Opening herd, as point-mirrored pairs.
 export const HERD_START = ['sheep', 'sheep', 'rabbit'];
@@ -77,7 +86,8 @@ export const CARDS = {
 };
 // All the cards, in the order they are laid out when dealt.
 export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage'];
-// Each turn deals HAND_SIZE different cards at random; each can be played once that turn.
+// Each turn deals HAND_SIZE different cards at random. Playing one draws a new card into
+// its place straight away, so the hand is always full.
 export const HAND_SIZE = 4;
 // How likely each card is to be dealt. Any card can turn up on any turn, but the odds
 // follow the match: upgrades and basic troops early, giants and towers once it is under
@@ -93,7 +103,7 @@ export const DEAL = {
   noCheckpoint: 0.4,        // towers are dealt less while you hold no checkpoint to put one on
 };
 export const START_MEAT = 15;
-export const UPGRADE = { damage: 2 }; // hunting damage added per +Damage card
+export const UPGRADE = { damage: 5 }; // hunting damage added per +Damage card
 
 // A match never runs long. If both castles stand once this many turns are up, it goes
 // on points: your castle's remaining health plus all the damage your side has dealt to

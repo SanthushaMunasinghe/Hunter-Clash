@@ -3,13 +3,14 @@ import { rand, dist, clamp, gap, TAU } from './utils.js';
 
 const LAUNCH_CLEAR = 42; // animals keep out of the mouth of each castle
 
-// left: meat still on the animal. It drains as hunting damage lands and is what the
-// number over its head shows. side: which base a slow animal grazes near (+1 blue's,
-// -1 red's); quick prey has no side and keeps to the middle.
+// left: meat still on the animal, which is also its health. It drains as arrows land,
+// is what the number over its head shows, and the animal dies when it runs out.
+// side: which base a slow animal grazes near (+1 blue's, -1 red's); quick prey has no
+// side and keeps to the middle.
 function makeAnimal(m, type, x, y, spawn = 1) {
   const d = ANIMALS[type];
   return {
-    id: m.nextId++, type, x, y, r: d.r, hp: d.hp, maxHp: d.hp, meat: d.meat, left: d.meat,
+    id: m.nextId++, type, x, y, r: d.r, left: d.meat,
     speed: d.speed, fast: !!d.fast, side: d.fast ? 0 : y > m.board.cy ? 1 : -1,
     heading: rand(TAU), wanderT: rand(0.5, 2), moving: true,
     face: Math.random() < 0.5 ? -1 : 1, kx: 0, ky: 0, flash: 0, spawn,

@@ -73,31 +73,53 @@ export function stepArrow(ar, obs, board, distance, onHit) {
   }
 }
 
+// The meat an arrow of `damage` takes off an animal: its damage, or whatever is left.
+// Quick prey gives up everything to any hit.
+export const arrowTake = (a, damage) => (a.fast ? a.left : Math.min(a.left, damage));
+
+// A team's volley as it leaves the bow: every arrow it owns at once, side by side across
+// the aim line and fanned out very slightly, so the volley as a whole flies where it was
+// aimed. Each shot is { x, y, angle, dx, dy }.
+export function volleyShots(m, team, angle) {
+  const L = m.board.castles[team].launch, n = m.teams[team].arrows;
+  const squeeze = Math.min(1, (ARROW.abreast - 1) / Math.max(1, n - 1));
+  const shots = [];
+  for (let i = 0; i < n; i++) {
+    const k = (i - (n - 1) / 2) * squeeze, a = angle + k * ARROW.fan;
+    shots.push({
+      x: L.x - Math.sin(angle) * k * ARROW.rank, y: L.y + Math.cos(angle) * k * ARROW.rank,
+      angle: a, dx: Math.cos(a), dy: Math.sin(a),
+    });
+  }
+  return shots;
+}
+
 // A frozen copy of the field for dry runs. With `lead`, animals carry their current
-// velocity so the dry run can move them while the arrow is in the air.
+// velocity so the dry run can move them while the arrows are in the air.
 function freeze(m, team, lead) {
   return collectObstacles(m, team).map(o => {
-    const v = lead && o.kind === 'animal' ? animalVelocity(o.ref) : { x: 0, y: 0 };
-    return { ...o, x0: o.x, y0: o.y, vx: v.x, vy: v.y, hp: o.ref.hp };
+    const animal = o.kind === 'animal', v = lead && animal ? animalVelocity(o.ref) : { x: 0, y: 0 };
+    return { ...o, x0: o.x, y0: o.y, vx: v.x, vy: v.y, left: animal ? o.ref.left : 0, fast: animal && o.ref.fast };
   });
 }
 
-// Dry run of one arrow against frozen obstacles `obs`, launched `delay` seconds into the
-// volley. Mutates obs (damage, deaths) so the next arrow of the volley sees the result.
-function dryArrow(m, team, angle, obs, damage, delay, maxContacts, points) {
-  const L = m.board.castles[team].launch;
-  const ar = {
-    x: L.x, y: L.y, dx: Math.cos(angle), dy: Math.sin(angle),
+// Dry run of a whole volley against frozen obstacles `obs`. The arrows fly together as
+// they do for real, so an animal one of them kills is out of the way of the rest.
+// maxContacts: how many contacts each arrow is followed for. paths: if given, one list
+// per arrow that its contacts are added to.
+function dryVolley(m, team, angle, obs, maxContacts, paths) {
+  const damage = m.teams[team].damage, res = { meat: 0, castle: 0 };
+  const arrows = volleyShots(m, team, angle).map(s => ({
+    x: s.x, y: s.y, dx: s.dx, dy: s.dy,
     bouncesLeft: Math.min(ARROW.bounces, maxContacts - 1), done: false,
-  };
-  const res = { meat: 0, castle: 0 };
-  const onHit = o => {
-    if (points) points.push({ x: ar.x, y: ar.y, kind: o.kind, ox: o.x, oy: o.y, r: o.r });
+  }));
+  const onHit = (o, ar) => {
+    if (paths) paths[arrows.indexOf(ar)].push({ x: ar.x, y: ar.y, kind: o.kind, ref: o.ref, ox: o.x, oy: o.y, r: o.r });
     if (o.kind === 'animal') {
-      const dealt = Math.min(o.hp, damage);
-      o.hp -= dealt;
-      res.meat += o.ref.meat * dealt / o.ref.maxHp;
-      if (o.hp <= 0) o.dead = true;
+      const gain = arrowTake(o, damage);
+      o.left -= gain;
+      res.meat += gain;
+      if (o.left <= 0) o.dead = true;
       return 'stop';
     }
     if (o.kind === 'castle') {
@@ -106,34 +128,27 @@ function dryArrow(m, team, angle, obs, damage, delay, maxContacts, points) {
     }
   };
   const chunk = 24;
-  for (let i = 0; i < 400 && !ar.done; i++) {
-    const t = delay + (i * chunk) / ARROW.speed;
+  for (let i = 0; i < 400 && arrows.some(ar => !ar.done); i++) {
+    const t = (i * chunk) / ARROW.speed;
     for (const o of obs) {
       o.x = o.x0 + o.vx * t;
       o.y = o.y0 + o.vy * t;
     }
-    stepArrow(ar, obs, m.board, chunk, onHit);
+    for (const ar of arrows) if (!ar.done) stepArrow(ar, obs, m.board, chunk, onHit);
   }
   return res;
 }
 
-// What a whole volley fired at `angle` would bring in: every arrow the team has, one
-// after another down the same line. Used by the AI to pick its shot.
+// What a volley fired at `angle` would bring in. Used by the AI to pick its shot.
 export function simulateVolley(m, team, angle, lead = false) {
-  const T = m.teams[team], obs = freeze(m, team, lead), total = { meat: 0, castle: 0 };
-  for (let i = 0; i < T.arrows; i++) {
-    const r = dryArrow(m, team, angle, obs, T.damage, i * ARROW.volleyGap, Infinity, null);
-    total.meat += r.meat;
-    total.castle += r.castle;
-  }
-  return total;
+  return dryVolley(m, team, angle, freeze(m, team, lead), Infinity, null);
 }
 
-// Aim preview: launch point, then up to two contacts of a single arrow against the
-// field as it stands right now. Animals are not led, so fast ones still take judgement.
-export function previewPath(m, team, angle) {
-  const L = m.board.castles[team].launch;
-  const points = [{ x: L.x, y: L.y, kind: 'start' }];
-  dryArrow(m, team, angle, freeze(m, team, false), m.teams[team].damage, 0, 2, points);
-  return points;
+// Aim preview: for each arrow of the volley, its launch point and then up to two
+// contacts against the field as it stands right now. Animals are not led, so fast ones
+// still take judgement.
+export function previewPaths(m, team, angle) {
+  const paths = volleyShots(m, team, angle).map(s => [{ x: s.x, y: s.y, kind: 'start' }]);
+  dryVolley(m, team, angle, freeze(m, team, false), 2, paths);
+  return paths;
 }

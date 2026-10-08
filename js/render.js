@@ -1,7 +1,7 @@
 import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, UPGRADE } from './config.js';
 import * as S from './sprites.js';
 import { cpOwner, homeSlot, towerAt } from './rules.js';
-import { previewPath } from './arrow.js';
+import { previewPaths, volleyShots } from './arrow.js';
 import { seeded, rand, lerp, clamp, easeOut, TAU } from './utils.js';
 
 const NOCK = 14;
@@ -302,19 +302,41 @@ export class Renderer {
   }
 
   drawAim(ctx, m, t) {
-    if (m.phase === 'aim' && m.turnTeam === BLUE && !m.aim) {
-      // Waiting for the player: arrow nocked straight ahead. The card panel is hidden
+    const hunting = m.phase === 'aim' && m.turnTeam === BLUE;
+    const tag = hunting ? this.volleyTag(ctx, m) : null;
+    if (hunting && !m.aim) {
+      // Waiting for the player: the volley nocked straight ahead. The card panel is hidden
       // for this, so the prompt and the demo hand sit in the open strip under the castle.
-      const b = m.board, L = b.castles[BLUE].launch;
+      const b = m.board;
       const demo = m.tutorial ? this.tutorialPose(m, t) : null;
-      if (demo && demo.aim) this.drawAimPath(ctx, previewPath(m, BLUE, demo.aim.angle), demo.aim.angle, demo.aim.pull, BLUE, t);
-      else S.drawArrow(ctx, L.x, L.y - NOCK, -Math.PI / 2, BLUE);
+      if (demo && demo.aim) this.drawAimPath(ctx, m, previewPaths(m, BLUE, demo.aim.angle), demo.aim.angle, demo.aim.pull, BLUE, t, tag);
+      else this.drawNocked(ctx, m, BLUE, -Math.PI / 2);
       this.drawAimPopup(ctx, b.cx, b.B + 30, t);
       if (demo) S.drawHand(ctx, demo.x, demo.y, demo.pressed, demo.alpha);
-      return;
+    } else {
+      const aim = m.aim;
+      if (aim && aim.paths) this.drawAimPath(ctx, m, aim.paths, aim.angle, aim.pull, aim.team, t, tag);
     }
-    const aim = m.aim;
-    if (aim && aim.path) this.drawAimPath(ctx, aim.path, aim.angle, aim.pull, aim.team, t);
+    if (tag) {
+      S.label(ctx, tag.dmg, tag.x - tag.w / 2, tag.y, tag.size, '#ffcf3f', 'left');
+      S.label(ctx, tag.mult, tag.x + tag.w / 2, tag.y, tag.size, '#fff', 'right');
+    }
+  }
+
+  // The volley on the string: every arrow the team will loose, side by side.
+  drawNocked(ctx, m, team, angle) {
+    for (const s of volleyShots(m, team, angle)) S.drawArrow(ctx, s.x + s.dx * NOCK, s.y + s.dy * NOCK, s.angle, team);
+  }
+
+  // The label over the nocked arrows while the player aims: the meat one arrow takes off
+  // an animal, and how many arrows the volley has if it is more than one. Centred on
+  // (x, y), w wide.
+  volleyTag(ctx, m) {
+    const T = m.teams[BLUE], L = m.board.castles[BLUE].launch, size = 18;
+    const dmg = `${T.damage} DMG`, mult = T.arrows > 1 ? `X${T.arrows}` : '';
+    ctx.font = S.fontStr(size);
+    const w = ctx.measureText(dmg).width + (mult ? 6 + ctx.measureText(mult).width : 0);
+    return { dmg, mult, size, w, x: L.x, y: L.y - 50 };
   }
 
   // The looping hand demo shown on the first turn of a Noob match: press below the
@@ -347,10 +369,11 @@ export class Renderer {
     ctx.restore();
   }
 
-  // Dotted preview: launch -> first contact, then a short fading stub of the bounce.
-  // An animal in the line of fire lights up.
-  drawAimPath(ctx, pts, angle, pull, team, t) {
-    const L = pts[0], col = team === BLUE ? '255,255,255' : '255,190,190';
+  // Dotted preview, one line per arrow of the volley: launch -> first contact, then a
+  // short fading stub of the bounce. Animals in the line of fire light up. The dots
+  // leave room for `tag`, the damage label, when there is one.
+  drawAimPath(ctx, m, paths, angle, pull, team, t, tag) {
+    const L = m.board.castles[team].launch, col = team === BLUE ? '255,255,255' : '255,190,190';
 
     // Pull-back beam behind the launch point.
     ctx.strokeStyle = `rgba(${col},0.3)`;
@@ -366,19 +389,24 @@ export class Renderer {
     const dots = (p, q, maxLen, a0, a1) => {
       const full = Math.hypot(q.x - p.x, q.y - p.y), len = Math.min(full, maxLen);
       for (let d = flow; d < len; d += 15) {
-        const k = d / full;
+        const k = d / full, x = lerp(p.x, q.x, k), y = lerp(p.y, q.y, k);
+        if (tag && Math.abs(x - tag.x) < tag.w / 2 + 7 && Math.abs(y - tag.y) < tag.size * 0.8) continue;
         ctx.fillStyle = `rgba(${col},${lerp(a0, a1, d / len)})`;
-        S.circle(ctx, lerp(p.x, q.x, k), lerp(p.y, q.y, k), 3.4);
+        S.circle(ctx, x, y, 3.4);
         ctx.fill();
         ctx.strokeStyle = 'rgba(31,36,51,0.45)';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
     };
-    if (pts[1]) dots(L, pts[1], Infinity, 0.95, 0.95);
-    if (pts[2]) dots(pts[1], pts[2], pts[2].kind === 'animal' ? Infinity : 150, 0.9, pts[2].kind === 'animal' ? 0.9 : 0.05);
-    for (const p of pts) {
-      if (p.kind !== 'animal') continue;
+    for (const pts of paths) {
+      if (pts[1]) dots(pts[0], pts[1], Infinity, 0.95, 0.95);
+      if (pts[2]) dots(pts[1], pts[2], pts[2].kind === 'animal' ? Infinity : 150, 0.9, pts[2].kind === 'animal' ? 0.9 : 0.05);
+    }
+    const lit = new Set();
+    for (const p of paths.flat()) {
+      if (p.kind !== 'animal' || lit.has(p.ref)) continue;
+      lit.add(p.ref);
       ctx.fillStyle = `rgba(${col},0.35)`;
       ctx.strokeStyle = `rgba(${col},0.95)`;
       ctx.lineWidth = 3;
@@ -386,7 +414,7 @@ export class Renderer {
       ctx.fill();
       ctx.stroke();
     }
-    S.drawArrow(ctx, L.x + Math.cos(angle) * NOCK, L.y + Math.sin(angle) * NOCK, angle, team);
+    this.drawNocked(ctx, m, team, angle);
   }
 
   drawArrows(ctx, m) {

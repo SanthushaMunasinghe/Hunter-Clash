@@ -30,22 +30,32 @@ export function dealWeights(m, team) {
   };
 }
 
+// Takes one card out of `pool`, picked by weight.
+function draw(pool, weights) {
+  let roll = Math.random() * pool.reduce((sum, id) => sum + weights[id], 0), k = 0;
+  while (k < pool.length - 1 && (roll -= weights[pool[k]]) > 0) k++;
+  return pool.splice(k, 1)[0];
+}
+
 // Deals a fresh hand: HAND_SIZE different cards drawn by weight. A hand always has
 // warriors or archers in it, so there is never a turn with no basic troops to send.
-// Playing a card empties its slot until the next deal.
 export function dealHand(m, team) {
   const weights = dealWeights(m, team);
   let hand;
   do {
     const pool = [...CARD_ORDER];
     hand = [];
-    while (hand.length < HAND_SIZE) {
-      let roll = Math.random() * pool.reduce((sum, id) => sum + weights[id], 0), k = 0;
-      while (k < pool.length - 1 && (roll -= weights[pool[k]]) > 0) k++;
-      hand.push(pool.splice(k, 1)[0]);
-    }
+    while (hand.length < HAND_SIZE) hand.push(draw(pool, weights));
   } while (!hand.includes('melee') && !hand.includes('archer'));
   m.teams[team].hand = CARD_ORDER.filter(id => hand.includes(id));
+}
+
+// Puts a new card in hand[idx] in place of the one just played, drawn by weight from the
+// cards not in the hand. The hand stays HAND_SIZE different cards, and the one that was
+// played never comes straight back.
+function refill(m, team, idx) {
+  const hand = m.teams[team].hand;
+  hand[idx] = draw(CARD_ORDER.filter(id => !hand.includes(id)), dealWeights(m, team)) ?? null;
 }
 
 // Upgrades get dearer each time they are bought.
@@ -94,7 +104,7 @@ export function dropTarget(m, team, id, x, y, options) {
   return best ? { valid: true, ...best } : { valid: false, x, y };
 }
 
-// Pays for hand[idx] and applies it. The hand slot stays empty until the next deal.
+// Pays for hand[idx] and applies it, then refills the slot with a new card.
 // Returns the new squad or tower, { upgrade: id } for an upgrade, or null if illegal.
 export function playCard(m, team, idx, target) {
   const T = m.teams[team], id = T.hand[idx], card = CARDS[id];
@@ -126,6 +136,6 @@ export function playCard(m, team, idx, target) {
     ent = { upgrade: id };
   }
   T.meat -= cost;
-  T.hand[idx] = null;
+  refill(m, team, idx);
   return ent;
 }
