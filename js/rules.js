@@ -29,6 +29,13 @@ export function cpOwner(lane, slot) {
   return -1;
 }
 
+// How many checkpoints a team holds across `lanes`.
+export function checkpointsHeld(lanes, team) {
+  let n = 0;
+  for (const lane of lanes) for (const slot of CHECKPOINTS) if (cpOwner(lane, slot) === team) n++;
+  return n;
+}
+
 // Slot of the forward-most checkpoint a team holds, or its home slot if it holds none.
 export function deployLimit(lane, team) {
   const f = frontier(lane, team);

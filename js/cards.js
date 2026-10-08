@@ -11,8 +11,6 @@ export function newTeam() {
     meat: START_MEAT, hand: new Array(HAND_SIZE).fill(null),
     arrows: 1, damage: ARROW.damage, bought: { arrow: 0, damage: 0 },
     shots: 0, hunted: 0, // arrows loosed and meat they brought in, over the whole match
-    dealt: 0,            // damage done to enemy troops, towers and castle; counts at time-up
-    dealtCastle: 0,      // the part of that done to the castle
   };
 }
 

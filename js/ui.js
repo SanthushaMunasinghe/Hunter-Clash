@@ -1,5 +1,6 @@
-import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT } from './config.js';
+import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT, POINTS } from './config.js';
 import { cardBlocker, cardCost } from './cards.js';
+import { checkpointsHeld } from './rules.js';
 import { cardIcon, meatIconURL, arrowIconURL, damageIconURL, starIconURL } from './sprites.js';
 
 const $ = id => document.getElementById(id);
@@ -106,9 +107,16 @@ export class UI {
     this.nextLevel = won && !last ? m.levelIdx + 1 : m.levelIdx;
     $('result').classList.toggle('lost', !won);
     $('result-title').textContent = won ? 'VICTORY!' : 'DEFEAT';
-    const mine = this.game.points(m, BLUE), theirs = this.game.points(m, RED);
+    // At time-up, spell out both scores and, if they are level, what broke the tie.
+    const tally = team => {
+      const held = checkpointsHeld(m.lanes, team);
+      return `${this.game.points(m, team)} (${m.castles[team].hp} health + ${held} checkpoint${held === 1 ? '' : 's'})`;
+    };
+    const level = this.game.points(m, BLUE) !== this.game.points(m, RED) ? ''
+      : m.castles[BLUE].hp !== m.castles[RED].hp ? ' Level on points, so the healthier castle takes it.'
+        : ' Level all round, so the bigger meat store takes it.';
     $('result-sub').textContent = m.over.how === 'time'
-      ? `Time is up. You scored ${mine} points to ${name}'s ${theirs} (castle health plus damage dealt).`
+      ? `Time is up. You scored ${tally(BLUE)} to ${name}'s ${tally(RED)}. A checkpoint counts ${POINTS.checkpoint}.${level}`
       : won ? `You beat ${name} in ${m.turn} turns.` : `${name} took your castle on turn ${m.turn}.`;
     $('btn-again').textContent = !won ? 'TRY AGAIN' : last ? 'PLAY AGAIN' : `NEXT: ${LEVELS[this.nextLevel].name}`;
     this.sfx.play(won ? 'win' : 'lose');
@@ -189,7 +197,7 @@ export class UI {
     for (const [team, tag] of [[BLUE, 'blue'], [RED, 'red']]) {
       this.put('arrows' + team, m.teams[team].arrows, v => { $('arrows-' + tag).textContent = v; });
       this.put('dmg' + team, m.teams[team].damage, v => { $('dmg-' + tag).textContent = v; });
-      // Points: castle health plus damage dealt. They decide a match that reaches the turn limit.
+      // Points: castle health plus checkpoints held. They decide a match that reaches the turn limit.
       this.put('pts' + team, this.game.points(m, team), v => { $('pts-' + tag).textContent = v; });
     }
 

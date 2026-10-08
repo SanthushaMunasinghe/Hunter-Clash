@@ -14,7 +14,7 @@ export function chooseAim(m, team, lvl) {
   const lo = team === BLUE ? -Math.PI + MIN_ELEV : MIN_ELEV;
   const hi = team === BLUE ? -MIN_ELEV : Math.PI - MIN_ELEV;
   const foeHp = m.castles[1 - team].hp;
-  // A chip off the castle is worth a little: it is a point for us and one off them.
+  // A chip off the castle is worth a little: it is a point off them if the match goes to time.
   const castleWorth = 2;
   let best = null;
   for (let i = 0; i < lvl.aimSamples; i++) {
