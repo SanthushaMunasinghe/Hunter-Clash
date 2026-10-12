@@ -1,5 +1,5 @@
-import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT, ARROW, UPGRADE } from './config.js';
-import { cardBlocker, cardCost, cardUnits } from './cards.js';
+import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT, ARROW } from './config.js';
+import { cardBlocker, cardCost, cardUnits, damageGain } from './cards.js';
 import { checkpointsHeld } from './rules.js';
 import { volleyDamage } from './arrow.js';
 import { cardIcon, meatIconURL, arrowIconURL, damageIconURL } from './sprites.js';
@@ -162,10 +162,10 @@ export class UI {
   // The line under a card's picture: how many units a troop card sends (it grows with
   // the player's hunting), or how much damage an upgrade adds. The new arrow from
   // +1 Arrow is a smaller one, so that is its own damage, not the full arrow's.
-  cardNote(T, id) {
-    const n = cardUnits(T, id);
+  cardNote(T, id, idx) {
+    const n = cardUnits(T, id, idx);
     if (n) return `${n} UNIT${n > 1 ? 'S' : ''}`;
-    if (id === 'damage') return `+${UPGRADE.damage} DAMAGE`;
+    if (id === 'damage') return `+${damageGain(T)} DAMAGE`;
     if (id === 'arrow') return `+${Math.floor(T.damage * ARROW.extra)} DAMAGE`;
     return '';
   }
@@ -233,9 +233,9 @@ export class UI {
         el.querySelector('.art').src = this.icons[id];
         el.animate([{ transform: 'scale(0.75)' }, { transform: 'scale(1)' }], { duration: 200, easing: 'ease-out' });
       });
-      if (id) this.put('cost' + i, cardCost(m.teams[BLUE], id), v => { el.querySelector('.cost b').textContent = v; });
+      if (id) this.put('cost' + i, cardCost(m.teams[BLUE], id, i), v => { el.querySelector('.cost b').textContent = v; });
       // What playing the card gets you, in a line under its picture.
-      this.put('note' + i, id ? this.cardNote(m.teams[BLUE], id) : '', v => {
+      this.put('note' + i, id ? this.cardNote(m.teams[BLUE], id, i) : '', v => {
         const tag = el.querySelector('.note');
         tag.textContent = v;
         if (v) tag.animate([{ transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
@@ -243,7 +243,7 @@ export class UI {
       let cls = 'card';
       if (!id) cls += ' empty';
       else {
-        const blocker = cardBlocker(m, BLUE, id);
+        const blocker = cardBlocker(m, BLUE, id, i);
         cls += ' ' + id;
         if (blocker === 'meat') cls += ' poor';
         if (!cardsOn) cls += ' locked';

@@ -210,10 +210,11 @@ function hitRow(lane, foe, blows) {
   return hits;
 }
 
-// One row's blows against the nearest enemy thing within its reach.
-function strike(lane, team, row) {
+// One row's blows against the nearest enemy thing within its reach. only: if given, the
+// row holds its blows unless that thing is of this type.
+function strike(lane, team, row, only) {
   const tgt = aheadOf(lane, team, row.slot), hits = [];
-  if (tgt.dist > reachOf(row.cls)) return hits;
+  if (tgt.dist > reachOf(row.cls) || (only && tgt.type !== only)) return hits;
   const blows = row.units.map(u => ({ by: u.id, dmg: UNITS[u.kind].dmg, sweep: UNITS[u.kind].sweep }));
   if (tgt.type === 'row') return hitRow(lane, 1 - team, blows);
   for (const b of blows) {
@@ -251,24 +252,30 @@ export function laneGuard(lane, team) {
 // A team's troops on `lane` at the end of its turn. The front row strikes whatever it
 // can reach, then each row of archers behind it that is in range shoots as well. After
 // that the column marches: up to MARCH slots, halting when its front row has something
-// to hit. Mutates the lane and returns what happened, in order. The game runs this on a
+// to hit. If that brings it up to the enemy castle it strikes the castle straight away. Mutates the lane and returns what happened, in order. The game runs this on a
 // copy and replays the result with animation; the AI runs it on copies to look ahead.
 // Units and towers are referred to by id so a plan can be replayed.
 //   { type: 'volley', hits }  one row strikes; hits as [{ by, kind, target, dmg }] with
 //                             kind 'unit', 'tower' or 'castle'
 //   { type: 'move', to }      the column's front row walks to slot `to`
 export function laneFight(lane, team) {
-  const acts = [], col = lane.cols[team], rows = rowsOf(lane, team);
-  rows.forEach((row, i) => {
+  const acts = [], col = lane.cols[team], rows = rowsOf(lane, team), struck = new Set();
+  // The front row and the archers behind it, each row in turn. skip: units to leave out.
+  const volleys = (only, skip) => rowsOf(lane, team).forEach((row, i) => {
     if (i && row.cls !== 'archer') return;
-    const hits = strike(lane, team, row);
+    const hits = strike(lane, team, { ...row, units: row.units.filter(u => !skip.has(u.id)) }, only);
+    for (const h of hits) struck.add(h.by);
     if (hits.length) acts.push({ type: 'volley', hits });
   });
+  volleys(null, new Set());
   if (rows.length) {
     const step = room(lane, team, col.front, MARCH, reachOf(rows[0].cls));
     if (step) {
       col.front += dirOf(team) * step;
       acts.push({ type: 'move', to: col.front });
+      // A column that marches up to the enemy castle strikes it there and then, with
+      // everyone in reach who has not already struck this turn.
+      volleys('castle', new Set(struck));
     }
   }
   return acts;

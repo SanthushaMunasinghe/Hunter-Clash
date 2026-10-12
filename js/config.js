@@ -97,21 +97,23 @@ export const HERD = { size: 6, min: 4, max: 8, delay: 2, perTurn: 2 };
 // `power` times the opening volley (one arrow of ARROW.damage), every troop card
 // costs `price` times as much and sends `units` warriors or archers, or `giants` giants.
 // The last line a side has reached applies. Both sides play by this.
+// A side that has grown is still dealt the odd small card at the opening size and price
+// (the first line), so there is something it can afford in a pinch: see DEAL.small.
 export const MUSTER = [
   { power: 1, price: 1, units: 3, giants: 1 },
   { power: 2, price: 2, units: 5, giants: 2 },
   { power: 3, price: 3, units: 8, giants: 3 },
 ];
 
-// zone: where a card is dropped. step: how much dearer a card gets each time it is bought.
-// Only +Damage does; every other card keeps its price all match.
+// zone: where a card is dropped. factor: what a card's price is multiplied by each time it
+// is bought. Only +Damage has one: it doubles in price, and adds more damage each time.
 export const CARDS = {
   melee: { name: 'Warriors', cost: 20, zone: 'lane' },
   archer: { name: 'Archers', cost: 20, zone: 'lane' },
   giant: { name: 'Giant', cost: 28, zone: 'lane' },
   tower: { name: 'Tower', cost: 30, zone: 'checkpoint' },
   arrow: { name: '+1 Arrow', cost: 40, zone: 'base' },
-  damage: { name: '+Damage', cost: 10, step: 10, zone: 'base' },
+  damage: { name: '+Damage', cost: 10, factor: 2, zone: 'base' },
 };
 // All the cards, in the order they are laid out when dealt.
 export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage'];
@@ -131,9 +133,17 @@ export const DEAL = {
   ramp: [2, 6],             // giant odds grow between these turns
   tower: 5,
   towerNeeds: 2,
+  // Small troop cards, for a side whose cards have grown. Each troop card in the hand
+  // dealt at the start of a turn has `chance` of being a small one, up to `most` of
+  // them. They are more common while the enemy's front row is within `within` slots of
+  // the side's home rows. Cards drawn during the turn are always full size, so a turn
+  // never has more small cards than that.
+  small: { calm: { chance: 0.13, most: 1 }, pressed: { chance: 0.7, most: 2 }, within: 6 },
 };
 export const START_MEAT = 0;
-// damage: hunting damage added per +Damage card. maxArrows: the biggest volley there is.
+// damage: what the first +Damage card adds to the hunting damage. Each one after it adds
+// that much more than the last: +2 for 10, +4 for 20, +6 for 40, +8 for 80.
+// maxArrows: the biggest volley there is.
 export const UPGRADE = { damage: 2, maxArrows: 3 };
 
 // A match never runs long. A castle that falls loses the match on the spot. If both are

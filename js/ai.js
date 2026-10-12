@@ -1,6 +1,6 @@
-import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT, UPGRADE } from './config.js';
+import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT } from './config.js';
 import { simulateVolley, volleyDamage } from './arrow.js';
-import { cardBlocker, cardCost, cardUnits, basePoint } from './cards.js';
+import { cardBlocker, cardCost, cardUnits, damageGain, basePoint } from './cards.js';
 import { towerSpots, frontier, homeSlot, rowsOf, placement, placeUnits, newUnit, laneGuard, laneFight } from './rules.js';
 import { rand, pick, lerp, clamp } from './utils.js';
 
@@ -72,13 +72,13 @@ function deepLaneOptions(m, team, lvl) {
   const copy = () => JSON.parse(JSON.stringify(m.lanes));
   const base = lookAhead(m, copy(), team, lvl.lookahead);
   T.hand.forEach((id, idx) => {
-    if (!id || cardBlocker(m, team, id)) return;
+    if (!id || cardBlocker(m, team, id, idx)) return;
     if (CARDS[id].zone === 'lane') {
       for (const li of [0, 1]) {
         const lanes = copy();
-        if (!placeUnits(lanes[li], team, id, cardUnits(T, id), kind => newUnit(-1, team, kind))) continue;
+        if (!placeUnits(lanes[li], team, id, cardUnits(T, id, idx), kind => newUnit(-1, team, kind))) continue;
         // Dearer troops have to earn their extra cost.
-        const score = 30 + lookAhead(m, lanes, team, lvl.lookahead) - base - (cardCost(T, id) - cardCost(T, 'melee')) + rand(2);
+        const score = 30 + lookAhead(m, lanes, team, lvl.lookahead) - base - (cardCost(T, id, idx) - cardCost(T, 'melee', idx)) + rand(2);
         opts.push({ idx, target: { lane: li }, score });
       }
     } else if (CARDS[id].zone === 'checkpoint') {
@@ -120,7 +120,7 @@ export function chooseCard(m, team, lvl) {
   // A hunt is taken to bring in meat in proportion to the damage of the volley.
   const volley = volleyDamage(T), perHunt = T.hunts ? T.hunted / T.hunts : volley * 0.9;
   const upgradeScore = id => {
-    const better = volleyDamage({ arrows: T.arrows + (id === 'arrow'), damage: T.damage + (id === 'damage' ? UPGRADE.damage : 0) });
+    const better = volleyDamage({ arrows: T.arrows + (id === 'arrow'), damage: T.damage + (id === 'damage' ? damageGain(T) : 0) });
     const gain = perHunt * (better - volley) / volley;
     return 28 + 12 * (gain * horizon) / cardCost(T, id) + (lvl.eco ?? 0) - danger * 50 + rand(6);
   };
@@ -135,12 +135,12 @@ export function chooseCard(m, team, lvl) {
       else if (short <= CARDS.melee.cost + 5 && danger < 0.35) saveFor = Math.max(saveFor, score - 8);
       return;
     }
-    if (cardBlocker(m, team, id)) return;
+    if (cardBlocker(m, team, id, idx)) return;
     if (deep) return; // lane plays were already scored by the look-ahead
 
     if (zone === 'lane') {
       for (const li of [0, 1]) {
-        if (!placement(m.lanes[li], team, id, cardUnits(T, id))) continue;
+        if (!placement(m.lanes[li], team, id, cardUnits(T, id, idx))) continue;
         const info = lanes[li];
         let score = 40 + rand(10);
         if (info.threat) score += Math.max(0, info.threat - info.own) * 0.5 + info.urgency * 30;

@@ -107,9 +107,9 @@ export class Input {
     }
     const id = m.teams[BLUE].hand[idx];
     if (!id) return; // nothing dealt yet
-    const blocker = cardBlocker(m, BLUE, id);
+    const blocker = cardBlocker(m, BLUE, id, idx);
     if (blocker) {
-      const short = cardCost(m.teams[BLUE], id) - m.teams[BLUE].meat;
+      const short = cardCost(m.teams[BLUE], id, idx) - m.teams[BLUE].meat;
       this.ui.toast(blocker === 'meat' ? `Need ${short} more meat`
         : id === 'tower' ? 'Hold a checkpoint first' : 'Both roads are blocked');
       this.sfx.play('error');
@@ -117,7 +117,7 @@ export class Input {
     }
     this.drag = {
       idx, id, ptr: e.pointerId, lift: e.pointerType === 'mouse' ? 0 : TOUCH_LIFT,
-      options: dropOptions(m, BLUE, id), target: null, onBoard: false, x: 0, y: 0,
+      options: dropOptions(m, BLUE, id, idx), target: null, onBoard: false, x: 0, y: 0,
     };
     this.capture(el, e);
     this.ui.setDragging(idx, id);

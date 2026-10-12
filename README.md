@@ -25,11 +25,11 @@ The number over an animal is its health and its meat in one. An arrow takes its 
 - Nothing ever stands still.
 - Richer prey arrives every 5 turns: cow on 6, bull and deer on 11, bear on 16, dino and stag on 21.
 
-**+1 Arrow** adds a smaller arrow to every volley, flying beside the full one and doing half its damage (three arrows is the most you can have). **+Damage** adds 2 to the full arrow (you start on 12), and so 1 to each smaller one. +Damage costs 10 the first time and 10 more each time after that; +1 Arrow always costs 40. Each upgrade card says what it adds. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
+**+1 Arrow** adds a smaller arrow to every volley, flying beside the full one and doing half its damage (three arrows is the most you can have). It always costs 40. **+Damage** adds to the full arrow (you start on 12), and half as much to each smaller one. Its price doubles each time you buy it and it gives 2 more than the time before: +2 for 10, +4 for 20, +6 for 40, +8 for 80, and so on. Each upgrade card says what it adds. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
 
 ## Troops
 
-A troop card sends single units: three warriors, three archers or one giant to start with. Troop cards grow with your hunting. Once the damage of your whole volley is double the opening volley (24) every troop card costs double and sends 5 warriors or archers, or 2 giants. At triple (36) it costs triple and sends 8, or 3 giants. The line on the card (`5 UNITS`) shows what it sends. Both sides play by this; the table is `MUSTER` in `js/config.js`. They step out of the home platform by your gate and walk up to join your column on that road.
+A troop card sends single units: three warriors, three archers or one giant to start with. Troop cards grow with your hunting. Once the damage of your whole volley is double the opening volley (24) every troop card costs double and sends 5 warriors or archers, or 2 giants. At triple (36) it costs triple and sends 8, or 3 giants. The line on the card (`5 UNITS`) shows what it sends. Once your cards have grown, the hand dealt at the start of a turn still sometimes has a small troop card in it, at the opening size and price (3 units for 20), so you are not priced out of sending anything: about one hand in three has one. While the enemy's front row is within 6 slots of your home rows nearly every hand has one and most have two. Cards drawn during a turn are always full size. Both sides play by this; the table is `MUSTER` in `js/config.js`. They step out of the home platform by your gate and walk up to join your column on that road.
 
 | | What it is for | Weakness |
 |---|---|---|
@@ -47,6 +47,7 @@ A troop card sends single units: three warriors, three archers or one giant to s
 1. The front row strikes the nearest enemy thing in its reach: the enemy's front row, a guard tower, or the castle behind the enemy gate.
 2. Each row of archers behind it that is in range shoots as well.
 3. The column marches up to 5 slots, the distance from one checkpoint to the next, halting as soon as its front row has something to hit.
+4. If that march brings it up to the enemy castle, it strikes the castle there and then, with every unit in reach that has not already struck this turn. Arriving in front of enemy troops earns no such blow.
 
 A volley is aimed at the enemy's front row as it stands. Its blows are shared out so none lands on a unit already finished, but blows left over once that row has fallen are lost.
 

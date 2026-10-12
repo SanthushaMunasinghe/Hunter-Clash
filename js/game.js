@@ -1,8 +1,8 @@
-import { BLUE, RED, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT } from './config.js';
+import { BLUE, RED, CASTLE, ARROW, CARDS, LEVELS, TURN_LIMIT } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
 import { collectObstacles, stepArrow, previewPaths, volleyShots, volleyDamage, pierce } from './arrow.js';
-import { newTeam, dealHand, playCard, basePoint, muster } from './cards.js';
+import { newTeam, dealHand, playCard, basePoint, muster, damageGain } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
 import { newLane, homeSlot, rowsOf, rowSpots, laneGuard, laneFight, checkpointsHeld } from './rules.js';
 import { dist, clamp, lerp, rand, easeOut } from './utils.js';
@@ -197,7 +197,7 @@ export class Game {
   // their place in the column; nothing fights until the turn ends. Upgrades go straight
   // onto the castle.
   play(m, team, idx, target) {
-    const id = m.teams[team].hand[idx], was = muster(m.teams[team]);
+    const id = m.teams[team].hand[idx], was = muster(m.teams[team]), gain = damageGain(m.teams[team]);
     const ent = playCard(m, team, idx, target);
     if (!ent) return false;
     this.sfx.play('place');
@@ -205,7 +205,7 @@ export class Game {
     if (ent.upgrade) {
       p = basePoint(m, team);
       const T = m.teams[team];
-      this.fx.text(p.x, p.y - 30, `${id === 'arrow' ? '+1 ARROW' : '+' + UPGRADE.damage} = ${volleyDamage(T)} DMG`, '#ffcf3f', false, 17);
+      this.fx.text(p.x, p.y - 30, `${id === 'arrow' ? '+1 ARROW' : '+' + gain} = ${volleyDamage(T)} DMG`, '#ffcf3f', false, 17);
       this.sfx.play('capture');
       // Stronger hunting makes troop cards bigger and dearer; say so when it happens.
       const now = muster(T);

@@ -1,4 +1,5 @@
-import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, UPGRADE } from './config.js';
+import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS } from './config.js';
+import { damageGain } from './cards.js';
 import * as S from './sprites.js';
 import { cpOwner, homeSlot, gateSlot } from './rules.js';
 import { previewPaths, volleyShots, volleyDamage } from './arrow.js';
@@ -363,7 +364,7 @@ export class Renderer {
     const T = m.teams[BLUE], c = m.board.castles[BLUE];
     const held = drag && drag.onBoard && drag.target && drag.target.valid && CARDS[drag.id].zone === 'base' ? drag.id : null;
     const total = volleyDamage({
-      arrows: T.arrows + (held === 'arrow' ? 1 : 0), damage: T.damage + (held === 'damage' ? UPGRADE.damage : 0),
+      arrows: T.arrows + (held === 'arrow' ? 1 : 0), damage: T.damage + (held === 'damage' ? damageGain(T) : 0),
     });
     const y = c.drawY + 30 - (held ? Math.abs(Math.sin(t * 6)) * 3 : 0);
     S.label(ctx, `${total} DMG`, c.x, y, 18, held ? '#8dff7a' : '#ffcf3f');
@@ -585,7 +586,7 @@ export class Renderer {
     if (!tg || !d.onBoard) return;
     const b = m.board, zone = CARDS[d.id].zone;
     if (zone === 'base') {
-      if (tg.valid) S.label(ctx, d.id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, tg.x, tg.y - 74, 18, '#8dff7a');
+      if (tg.valid) S.label(ctx, d.id === 'arrow' ? '+1 ARROW' : `+${damageGain(m.teams[BLUE])} DAMAGE`, tg.x, tg.y - 74, 18, '#8dff7a');
     } else if (tg.valid) {
       ctx.globalAlpha = 0.85;
       if (zone === 'lane') {
