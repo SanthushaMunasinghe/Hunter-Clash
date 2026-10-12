@@ -20,7 +20,7 @@ The herd is small, about six animals. A kill comes back two rounds later.
 
 The number over an animal is its health and its meat in one. An arrow takes its damage off that number and you bank exactly as much, so `12 DMG` means +12 meat per arrow that lands (or whatever the animal has left). An arrow that kills an animal with damage to spare flies straight on through it with what is left, and can go through several; the aim preview shows that stretch as a fainter line. The damage per arrow is always shown at the foot of your castle, with `X2` or `X3` when the volley has more than one arrow, and turns green with the new figure while you hold an upgrade card over the castle.
 
-- **Quick prey** (rabbit, deer, stag; gold number) is the exception: any hit takes all of it. It keeps to the middle of the field, far from both castles, moves fast, and the aim preview does not lead it for you.
+- **Quick prey** (rabbit, deer, stag; gold number under a red target mark) is the exception: any hit takes all of it, and it carries a big bounty for its size (36, 56 and 84). It keeps to the middle of the field, far from both castles, moves fast, and the aim preview does not lead it for you.
 - **Slow prey** (sheep, cow, bull, bear, dino) lasts several hits. The cheapest kinds graze nearest the castles; richer ones hold more meat and roam further out.
 - Nothing ever stands still.
 - Richer prey arrives every 5 turns: cow on 6, bull and deer on 11, bear on 16, dino and stag on 21.

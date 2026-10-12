@@ -426,6 +426,33 @@ export function drawAnimal(ctx, a, t) {
   const top = r * (ANIMAL_TOP[a.type] || 1);
   meatIcon(ctx, a.x - w / 2 - 5, a.y - top - 12, 0.72);
   label(ctx, txt, a.x + 8, a.y - top - 11, size, a.fast ? '#ffe27a' : '#fff');
+  // Quick prey wears a marksman's target: one hit takes the lot.
+  if (a.fast) crosshair(ctx, a.x, a.y - top - 32 - Math.abs(Math.sin(t * 3 + a.id)) * 2, 7);
+}
+
+// A sniper's reticle: ring, four ticks and a dot.
+function crosshair(ctx, x, y, r) {
+  const mark = () => {
+    circle(ctx, x, y, r);
+    ctx.stroke();
+    ctx.beginPath();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      ctx.moveTo(x + dx * r * 0.45, y + dy * r * 0.45);
+      ctx.lineTo(x + dx * r * 1.5, y + dy * r * 1.5);
+    }
+    ctx.stroke();
+  };
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 4.2;
+  mark();
+  ctx.strokeStyle = '#ff5a4d';
+  ctx.lineWidth = 2;
+  mark();
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = '#ff5a4d';
+  circle(ctx, x, y, 1.6);
+  ctx.fill();
 }
 
 // ------------------------------------------------------------------ buildings
