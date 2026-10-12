@@ -12,7 +12,7 @@ Each turn runs in four steps:
    - **+1 Arrow**, **+Damage** – onto your own castle.
 4. **End turn** – nothing on the roads fights until you press END TURN. Then, on each road, your front row strikes whatever it can reach, the rows of archers behind it shoot if they are in range, and the column marches.
 
-The deal is random but weighted. Early on it is mostly Warriors, Archers and the two upgrades. Giants and Towers become common from about turn 6, and an upgrade turns up less the more of it you own (+1 Arrow is rare once you have three). Any card can still appear on any turn, and a hand always has Warriors or Archers in it. The odds are the `DEAL` table in `js/config.js`.
+The deal is random but weighted. Warriors, Archers and the two upgrades all turn up about equally often, however many upgrades you have bought. Giants become common from about turn 6. The Tower is a little rarer and is only dealt once you hold two checkpoints on one road. +1 Arrow stops being dealt once you have three arrows. A hand always has Warriors or Archers in it. The odds are the `DEAL` table in `js/config.js`.
 
 ## Hunting
 
@@ -25,7 +25,7 @@ The number over an animal is its health and its meat in one. An arrow takes its 
 - Nothing ever stands still.
 - Richer prey arrives every 5 turns: cow on 6, bull and deer on 11, bear on 16, dino and stag on 21.
 
-**+1 Arrow** adds an arrow to every volley. **+Damage** adds 5 hunting damage (you start on 12), so every arrow brings in more. Both get dearer each time you buy them. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
+**+1 Arrow** adds an arrow to every volley. **+Damage** adds 5 hunting damage (you start on 12), so every arrow brings in more. +Damage costs 10 the first time and 10 more each time after that. +1 Arrow always costs 40, and three arrows is the most you can have. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
 
 ## Troops
 

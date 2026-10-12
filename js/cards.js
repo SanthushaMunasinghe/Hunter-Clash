@@ -1,6 +1,6 @@
 import { CARDS, CARD_ORDER, HAND_SIZE, DEAL, START_MEAT, UNITS, ARROW, UPGRADE } from './config.js';
 import { dist, clamp, lerp } from './utils.js';
-import { towerSpots, dirOf, homeSlot, placement, placeUnits, newUnit } from './rules.js';
+import { towerSpots, dirOf, homeSlot, placement, placeUnits, newUnit, checkpointsHeld } from './rules.js';
 
 const SNAP = 64;       // how close a tower must be dropped to a checkpoint to snap onto it
 const BASE_SNAP = 95;  // how close an upgrade must be dropped to your own castle
@@ -15,16 +15,17 @@ export function newTeam() {
 }
 
 // The odds of each card being dealt to `team` right now. See DEAL in config.js.
+// A card on 0 is not dealt at all.
 export function dealWeights(m, team) {
-  const T = m.teams[team], last = arr => arr[arr.length - 1];
+  const T = m.teams[team];
   const under = clamp((m.turn - DEAL.ramp[0]) / (DEAL.ramp[1] - DEAL.ramp[0]), 0, 1);
   return {
     melee: DEAL.melee,
     archer: DEAL.archer,
-    arrow: DEAL.arrow[T.arrows - 1] ?? last(DEAL.arrow),
-    damage: DEAL.damage[T.bought.damage] ?? last(DEAL.damage),
+    arrow: T.arrows < UPGRADE.maxArrows ? DEAL.arrow : 0,
+    damage: DEAL.damage,
     giant: lerp(DEAL.giant[0], DEAL.giant[1], under),
-    tower: lerp(DEAL.tower[0], DEAL.tower[1], under) * (towerSpots(m, team).length ? 1 : DEAL.noCheckpoint),
+    tower: m.lanes.some(lane => checkpointsHeld([lane], team) >= DEAL.towerNeeds) ? DEAL.tower : 0,
   };
 }
 
@@ -41,7 +42,7 @@ export function dealHand(m, team) {
   const weights = dealWeights(m, team);
   let hand;
   do {
-    const pool = [...CARD_ORDER];
+    const pool = CARD_ORDER.filter(id => weights[id] > 0);
     hand = [];
     while (hand.length < HAND_SIZE) hand.push(draw(pool, weights));
   } while (!hand.includes('melee') && !hand.includes('archer'));
@@ -50,10 +51,11 @@ export function dealHand(m, team) {
 
 // Puts a new card in hand[idx] in place of the one just played, drawn by weight from the
 // cards not in the hand. The hand stays HAND_SIZE different cards, and the one that was
-// played never comes straight back.
+// played only comes straight back when there is nothing else left to deal.
 function refill(m, team, idx) {
-  const hand = m.teams[team].hand;
-  hand[idx] = draw(CARD_ORDER.filter(id => !hand.includes(id)), dealWeights(m, team)) ?? null;
+  const hand = m.teams[team].hand, weights = dealWeights(m, team);
+  const pool = CARD_ORDER.filter(id => weights[id] > 0 && !hand.includes(id));
+  hand[idx] = draw(pool, weights) ?? (weights[hand[idx]] > 0 ? hand[idx] : null);
 }
 
 // Upgrades get dearer each time they are bought.

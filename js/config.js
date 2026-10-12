@@ -83,35 +83,38 @@ export const HERD_START = ['sheep', 'sheep', 'rabbit'];
 // herd up to `max` when they first arrive.
 export const HERD = { size: 6, min: 4, max: 8, delay: 2, perTurn: 2 };
 
-// zone: where a card is dropped. step: how much dearer an upgrade gets each time it is bought.
+// zone: where a card is dropped. step: how much dearer a card gets each time it is bought.
+// Only +Damage does; every other card keeps its price all match.
 export const CARDS = {
   melee: { name: 'Warriors', cost: 20, zone: 'lane' },
   archer: { name: 'Archers', cost: 20, zone: 'lane' },
   giant: { name: 'Giant', cost: 28, zone: 'lane' },
   tower: { name: 'Tower', cost: 30, zone: 'checkpoint' },
-  arrow: { name: '+1 Arrow', cost: 40, step: 30, zone: 'base' },
-  damage: { name: '+Damage', cost: 25, step: 20, zone: 'base' },
+  arrow: { name: '+1 Arrow', cost: 40, zone: 'base' },
+  damage: { name: '+Damage', cost: 10, step: 10, zone: 'base' },
 };
 // All the cards, in the order they are laid out when dealt.
 export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage'];
 // Each turn deals HAND_SIZE different cards at random. Playing one draws a new card into
 // its place straight away, so the hand is always full.
 export const HAND_SIZE = 4;
-// How likely each card is to be dealt. Any card can turn up on any turn, but the odds
-// follow the match: upgrades and basic troops early, giants and towers once it is under
-// way, and upgrades fading the more of them you already own.
+// How likely each card is to be dealt. The two upgrades turn up about as often as
+// warriors and archers all match long, however many have been bought. +1 Arrow drops out
+// of the deal for good at UPGRADE.maxArrows arrows. The tower is a little rarer, and is
+// only dealt to a side holding `towerNeeds` checkpoints on one road.
 export const DEAL = {
   melee: 10,
   archer: 8,
-  arrow: [9, 5, 1, 0.6],    // by arrows owned: 1, 2, 3, 4 or more
-  damage: [8, 5, 2.5, 1],   // by +Damage cards bought: 0, 1, 2, 3 or more
+  arrow: 9,
+  damage: 9,
   giant: [1, 6],            // on the first turns -> once the match is under way
-  tower: [1, 5],
-  ramp: [2, 6],             // giant and tower odds grow between these turns
-  noCheckpoint: 0.4,        // towers are dealt less while you hold no checkpoint to put one on
+  ramp: [2, 6],             // giant odds grow between these turns
+  tower: 5,
+  towerNeeds: 2,
 };
 export const START_MEAT = 15;
-export const UPGRADE = { damage: 5 }; // hunting damage added per +Damage card
+// damage: hunting damage added per +Damage card. maxArrows: the biggest volley there is.
+export const UPGRADE = { damage: 5, maxArrows: 3 };
 
 // A match never runs long. A castle that falls loses the match on the spot. If both are
 // still standing once this many turns are up, it goes on points: what is left of your
