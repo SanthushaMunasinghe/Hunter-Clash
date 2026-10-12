@@ -155,6 +155,13 @@ export const TURN_LIMIT = 25;
 // Opponents differ only in how well they play; every stat and price is identical.
 // aimSamples: angles tried per shot. aimError: random wobble in radians.
 // lead: whether it aims where a moving animal will be rather than where it is.
+// The enemy takes 0.9 s to draw its bow. Most levels pick their shot before the draw, so
+// the herd has moved on by the time the arrow flies and it is the bounces that find
+// them meat. The two best aim properly, which is what lets them bag quick prey:
+// commit: how long before loosing it takes a last look and corrects its aim (not given:
+//   it never does). steady: it centres its aim on the target rather than taking the
+//   first angle that clips it. foresee: it reads where the herd will really be, turns
+//   at the field edge included, and leaves alone quick prey that is about to jink.
 // smart: chance each card decision is a considered one rather than a random one.
 // lookahead: rounds of lane fighting it plays out in its head before placing troops.
 // maxCards / skip: how many cards it bothers to play, and how often it forgets to.
@@ -164,6 +171,6 @@ export const LEVELS = [
   { name: 'NOOB', blurb: 'Still learning which end of the arrow is sharp.', aimSamples: 2, aimError: 0.2, lead: false, smart: 0.15, lookahead: 0, maxCards: 1, skip: 0.35 },
   { name: 'RECRUIT', blurb: 'Knows the rules, makes plenty of mistakes.', aimSamples: 4, aimError: 0.12, lead: false, smart: 0.3, lookahead: 0, maxCards: 1, skip: 0.2 },
   { name: 'VETERAN', blurb: 'A fair fight. Think before you spend.', aimSamples: 12, aimError: 0.05, lead: false, smart: 0.75, lookahead: 0, maxCards: 3, skip: 0 },
-  { name: 'ACE', blurb: 'Sharp aim and well-timed pushes.', aimSamples: 30, aimError: 0.02, lead: true, smart: 0.9, lookahead: 2, maxCards: 3, skip: 0, minScore: 40, eco: 15 },
-  { name: 'LEGEND', blurb: 'Rarely misses. Punishes every gap.', aimSamples: 64, aimError: 0, lead: true, smart: 1, lookahead: 3, maxCards: 4, skip: 0, minScore: 30, eco: 15 },
+  { name: 'ACE', blurb: 'Sharp aim and well-timed pushes.', aimSamples: 30, aimError: 0.04, lead: true, steady: true, commit: 0.65, smart: 0.9, lookahead: 2, maxCards: 3, skip: 0, minScore: 40, eco: 15 },
+  { name: 'LEGEND', blurb: 'Rarely misses. Punishes every gap.', aimSamples: 64, aimError: 0, lead: true, foresee: true, steady: true, commit: 0.12, smart: 1, lookahead: 3, maxCards: 4, skip: 0, minScore: 30, eco: 15 },
 ];

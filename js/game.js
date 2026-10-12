@@ -111,8 +111,7 @@ export class Game {
       m.tutorial = false;
     } else {
       await this.sleep(m, 0.5);
-      angle = chooseAim(m, RED, LEVELS[m.levelIdx]);
-      await this.aiAim(m, angle);
+      angle = await this.aiAim(m, LEVELS[m.levelIdx]);
     }
     m.aim = null;
     m.phase = 'fly';
@@ -141,18 +140,31 @@ export class Game {
     await this.sleep(m, 0.25);
   }
 
-  async aiAim(m, angle) {
-    const from = angle + (Math.random() < 0.5 ? -1 : 1) * rand(0.3, 0.6);
-    const t0 = m.time, dur = 0.7;
+  // The enemy draws its bow: it swings onto a target, holds, and looses. Most levels
+  // pick their shot before the draw and stick to it, so the prey has moved on by the
+  // time it flies. A level with `commit` takes a second look that many seconds before
+  // loosing and corrects its aim. Returns the angle it shoots at.
+  async aiAim(m, lvl) {
+    const draw = 0.7, total = draw + 0.2, commit = Math.min(total, lvl.commit ?? total);
+    let angle = chooseAim(m, RED, lvl, total), settled = commit >= total;
+    let from = angle + (Math.random() < 0.5 ? -1 : 1) * rand(0.3, 0.6), t0 = m.time, dur = draw;
+    const start = m.time;
     m.aim = { team: RED, angle: from, pull: 0 };
-    while (m.time - t0 < dur) {
-      const k = easeOut((m.time - t0) / dur);
-      m.aim.angle = lerp(from, angle, k);
-      m.aim.pull = 60 * k;
+    while (m.time - start < total) {
+      const left = total - (m.time - start);
+      if (!settled && left <= commit) {
+        settled = true;
+        from = m.aim.angle;
+        t0 = m.time;
+        dur = left;
+        angle = chooseAim(m, RED, lvl, left);
+      }
+      m.aim.angle = lerp(from, angle, easeOut(clamp((m.time - t0) / dur, 0, 1)));
+      m.aim.pull = 60 * easeOut(clamp((m.time - start) / draw, 0, 1));
       await this.sleep(m, 0);
     }
     m.aim.angle = angle;
-    await this.sleep(m, 0.2);
+    return angle;
   }
 
   async aiCards(m) {

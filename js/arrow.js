@@ -1,8 +1,10 @@
 import { ARROW, CASTLE } from './config.js';
-import { animalVelocity } from './animals.js';
+import { animalVelocity, updateAnimals } from './animals.js';
 import { clamp } from './utils.js';
 
 const EDGE = { kind: 'edge' };
+const CHUNK = 24;     // px an arrow is moved per step of a dry run
+const FORESIGHT = 70; // steps of a dry run that a forecast of the herd covers
 
 // Everything `team`'s arrows can hit, as capsules {x, y, h, r}.
 export function collectObstacles(m, team) {
@@ -124,13 +126,35 @@ function freeze(m, team, lead) {
   });
 }
 
+// Works out where the herd will be once a shot is loosed `delay` seconds from now and
+// while it flies, by running copies of the animals on ahead: they hold their line,
+// glance off the edge of the field and turn back at the limits of their range, just as
+// the real ones will. Each animal obstacle gets a `track` of positions, one per step of
+// the dry run. What cannot be foreseen is quick prey changing its mind: `sure` is how
+// long after the shot its track can be trusted, and the dry run ignores it after that.
+function foresee(m, obs, delay) {
+  const animals = obs.filter(o => o.kind === 'animal'), dt = CHUNK / ARROW.speed;
+  const ghost = { board: m.board, animals: animals.map(o => ({ ...o.ref })) };
+  for (let t = delay; t > 1e-6; t -= dt) updateAnimals(ghost, Math.min(dt, t));
+  animals.forEach((o, k) => {
+    o.track = [];
+    o.sure = o.fast ? o.ref.wanderT - delay : Infinity;
+    ghost.animals[k].wanderT = Infinity; // past that point it is anyone's guess anyway
+  });
+  for (let i = 0; i < FORESIGHT; i++) {
+    animals.forEach((o, k) => o.track.push({ x: ghost.animals[k].x, y: ghost.animals[k].y }));
+    updateAnimals(ghost, dt);
+  }
+}
+
 // Dry run of a whole volley against frozen obstacles `obs`. The arrows fly together as
 // they do for real, so an animal one of them kills is out of the way of the rest.
 // maxContacts: how many contacts each arrow is followed for, not counting animals it
 // goes straight through. paths: if given, one list per arrow that its contacts are added
 // to, those it passed through marked `pass`; an arrow that has passed through something
-// is then only followed as far as its next contact.
-function dryVolley(m, team, angle, obs, maxContacts, paths) {
+// is then only followed as far as its next contact. delay: seconds until the volley is
+// loosed, for obstacles that are moving.
+function dryVolley(m, team, angle, obs, maxContacts, paths, delay = 0) {
   const res = { meat: 0, castle: 0 };
   const arrows = volleyShots(m, team, angle).map(s => ({
     x: s.x, y: s.y, dx: s.dx, dy: s.dy, power: s.power,
@@ -142,7 +166,7 @@ function dryVolley(m, team, angle, obs, maxContacts, paths) {
     if (o.kind === 'animal') {
       const hit = pierce(ar, o);
       res.meat += hit.gain;
-      if (o.left <= 0) o.dead = true;
+      if (o.left <= 0) o.dead = o.killed = true;
       if (!hit.pass) return 'stop';
       point.pass = true;
       if (paths) ar.bouncesLeft = 0;
@@ -153,21 +177,41 @@ function dryVolley(m, team, angle, obs, maxContacts, paths) {
       return 'stop';
     }
   };
-  const chunk = 24;
   for (let i = 0; i < 400 && arrows.some(ar => !ar.done); i++) {
-    const t = (i * chunk) / ARROW.speed;
+    const flown = (i * CHUNK) / ARROW.speed;
     for (const o of obs) {
-      o.x = o.x0 + o.vx * t;
-      o.y = o.y0 + o.vy * t;
+      if (o.track) {
+        const p = o.track[Math.min(i, o.track.length - 1)];
+        o.x = p.x;
+        o.y = p.y;
+        o.dead = o.killed || flown > o.sure;
+      } else {
+        o.x = o.x0 + o.vx * (delay + flown);
+        o.y = o.y0 + o.vy * (delay + flown);
+      }
     }
-    for (const ar of arrows) if (!ar.done) stepArrow(ar, obs, m.board, chunk, onHit);
+    for (const ar of arrows) if (!ar.done) stepArrow(ar, obs, m.board, CHUNK, onHit);
   }
   return res;
 }
 
-// What a volley fired at `angle` would bring in. Used by the AI to pick its shot.
-export function simulateVolley(m, team, angle, lead = false) {
-  return dryVolley(m, team, angle, freeze(m, team, lead), Infinity, null);
+// The field as the AI reads it when planning a shot to be loosed `delay` seconds from
+// now. Without `lead` it takes the animals to be standing still. With it they carry on
+// in a straight line, and with `foresee` as well it works out where they will really
+// have got to. Hand the result to simulateVolley for each angle being weighed up.
+export function scout(m, team, { lead = false, foresee: far = false, delay = 0 } = {}) {
+  const obs = freeze(m, team, lead);
+  if (lead && far) foresee(m, obs, delay);
+  return { obs, delay };
+}
+
+// What a volley fired at `angle` would bring in, on a field read by scout().
+export function simulateVolley(m, team, angle, field) {
+  for (const o of field.obs) {
+    o.dead = o.killed = false;
+    if (o.kind === 'animal') o.left = o.ref.left;
+  }
+  return dryVolley(m, team, angle, field.obs, Infinity, null, field.delay);
 }
 
 // Aim preview: for each arrow of the volley, its launch point and then up to two

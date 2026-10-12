@@ -1,5 +1,5 @@
 import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT } from './config.js';
-import { simulateVolley, volleyDamage } from './arrow.js';
+import { scout, simulateVolley, volleyDamage } from './arrow.js';
 import { cardBlocker, cardCost, cardUnits, damageGain, basePoint } from './cards.js';
 import { towerSpots, frontier, homeSlot, rowsOf, placement, placeUnits, newUnit, laneGuard, laneFight } from './rules.js';
 import { rand, pick, lerp, clamp } from './utils.js';
@@ -10,21 +10,38 @@ const MIN_ELEV = 0.16;
 
 // Try a spread of angles and keep the one whose volley brings in the most, then wobble
 // it by the level's error. Better levels lead moving animals.
-export function chooseAim(m, team, lvl) {
+// delay: seconds until the shot is loosed. A level that leads its shots allows for it.
+export function chooseAim(m, team, lvl, delay = 0) {
   const lo = team === BLUE ? -Math.PI + MIN_ELEV : MIN_ELEV;
   const hi = team === BLUE ? -MIN_ELEV : Math.PI - MIN_ELEV;
   const foeHp = m.castles[1 - team].hp;
   // A chip off the castle is worth a little: it is a point off them if the match goes to time.
   const castleWorth = 2;
+  // What a shot at `ang` should bring in: meat most of all, so the richest hit wins,
+  // which is quick prey whenever it can be had.
+  const field = scout(m, team, { lead: lvl.lead, foresee: lvl.foresee, delay });
+  const worth = ang => {
+    const r = simulateVolley(m, team, ang, field);
+    return r.meat + r.castle * castleWorth + (r.castle >= foeHp ? 1000 : 0);
+  };
   let best = null;
   for (let i = 0; i < lvl.aimSamples; i++) {
-    const ang = lerp(lo, hi, (i + Math.random()) / lvl.aimSamples);
-    const r = simulateVolley(m, team, ang, lvl.lead);
-    let score = r.meat + r.castle * castleWorth + rand(2);
-    if (r.castle >= foeHp) score += 1000;
-    if (!best || score > best.score) best = { ang, score };
+    const ang = lerp(lo, hi, (i + Math.random()) / lvl.aimSamples), value = worth(ang), score = value + rand(2);
+    if (!best || score > best.score) best = { ang, value, score };
   }
-  return clamp(best.ang + rand(-lvl.aimError, lvl.aimError), lo, hi);
+  let ang = best.ang;
+  if (lvl.steady) {
+    // A marksman does not settle for a shot that only just clips its target. It feels
+    // out how far the aim could drift either way and still do as well, and shoots down
+    // the middle of that.
+    const step = (hi - lo) / lvl.aimSamples / 6, drift = sign => {
+      let n = 0;
+      while (n < 8 && worth(ang + sign * (n + 1) * step) >= best.value) n++;
+      return n;
+    };
+    ang += (drift(1) - drift(-1)) * step / 2;
+  }
+  return clamp(ang + rand(-lvl.aimError, lvl.aimError), lo, hi);
 }
 
 // What a healthy unit is worth on the road when weighing up a position.

@@ -63,7 +63,7 @@ A castle that falls loses the match on the spot. Otherwise matches are capped at
 
 ## Opponents
 
-Noob, Recruit, Veteran, Ace and Legend, picked on the menu before a match. They differ only in how well they aim and think; every unit stat and price is the same for both sides. A fresh page load always starts on Noob, whose first turn shows a drag-to-aim demo.
+Noob, Recruit, Veteran, Ace and Legend, picked on the menu before a match. They differ only in how well they aim and think; every unit stat and price is the same for both sides. Noob to Veteran pick a shot and loose it nearly a second later, so they mostly live off lucky bounces. Ace leads its target and corrects its aim during the draw: it goes after quick prey and gets it a little over half the time. Legend reads where the herd is going, re-aims just before loosing and rarely misses: it bags quick prey about nine hunts in ten. A fresh page load always starts on Noob, whose first turn shows a drag-to-aim demo.
 
 All numbers (unit stats, prices, prey, AI levels) live in `js/config.js`.
 
