@@ -138,23 +138,32 @@ export function updateAnimals(m, dt) {
   for (const a of list) {
     a.flash = Math.max(0, a.flash - dt);
     a.spawn = Math.min(1, a.spawn + dt * 2.5);
-    // Animals never stand still. Fast ones dart about in short straight runs; slow ones amble.
+    // Animals never stand still. Slow ones amble, turning a little every few seconds.
+    // Quick prey dashes: it picks a line across the field and holds it, glancing off the
+    // limits of its band and the field edge rather than doubling back, so one run
+    // carries it a long way.
     a.wanderT -= dt;
     if (a.wanderT <= 0) {
-      a.wanderT = a.fast ? rand(0.9, 2.2) : rand(1.5, 4);
-      a.heading += a.fast ? rand(-2, 2) : rand(-1.3, 1.3);
+      a.wanderT = a.fast ? rand(2.2, 4) : rand(1.5, 4);
+      if (a.fast) a.heading = (Math.random() < 0.5 ? 0 : Math.PI) + rand(-0.4, 0.4);
+      else a.heading += rand(-1.3, 1.3);
     }
 
     // Keep to the kind's band: cheap prey near its base, quick prey in the middle.
     const [lo, hi] = ANIMALS[a.type].band, ny = (a.y - b.cy) / b.b;
     const out = a.side ? a.side * ny : Math.abs(ny), toBase = a.side || Math.sign(ny) || 1;
     const want = out < lo ? toBase : out > hi ? -toBase : 0;
-    if (want && Math.sin(a.heading) * want < 0.25) a.heading = Math.atan2(want * rand(0.5, 1), rand(-1, 1));
+    if (want && Math.sin(a.heading) * want < 0.25) {
+      a.heading = a.fast
+        ? Math.atan2(want * Math.max(0.3, Math.abs(Math.sin(a.heading))), Math.cos(a.heading))
+        : Math.atan2(want * rand(0.5, 1), rand(-1, 1));
+    }
 
     // Turn back before reaching the edge.
     if (b.fieldG(a.x, a.y, a.r + 10 + a.speed * 0.3) > 0.9) {
-      const N = b.fieldN(a.x, a.y, a.r + 10);
-      a.heading = Math.atan2(-N.y, -N.x) + rand(-0.7, 0.7);
+      const N = b.fieldN(a.x, a.y, a.r + 10), dx = Math.cos(a.heading), dy = Math.sin(a.heading), dot = dx * N.x + dy * N.y;
+      if (!a.fast) a.heading = Math.atan2(-N.y, -N.x) + rand(-0.7, 0.7);
+      else if (dot > 0) a.heading = Math.atan2(dy - 2 * dot * N.y, dx - 2 * dot * N.x) + rand(-0.15, 0.15);
     }
 
     const v = animalVelocity(a), vx = v.x + a.kx, vy = v.y + a.ky;
