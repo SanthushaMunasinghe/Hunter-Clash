@@ -71,13 +71,13 @@ export const UNITS = {
 // band: where it roams, as a fraction of the way from the middle of the field to a base.
 // Cheap prey grazes near the castles; the quick kinds keep to the middle, far from both.
 export const ANIMALS = {
-  sheep: { meat: 48, r: 15, speed: 15, from: 1, band: [0.5, 0.86] },
+  sheep: { meat: 48, r: 15, speed: 30, from: 1, band: [0.5, 0.86] },
   rabbit: { meat: 36, r: 12, speed: 99, fast: true, from: 1, band: [0, 0.26] },
-  cow: { meat: 70, r: 17, speed: 14, from: 6, band: [0.42, 0.8] },
-  bull: { meat: 96, r: 19, speed: 13, from: 11, band: [0.32, 0.72] },
+  cow: { meat: 70, r: 17, speed: 28, from: 6, band: [0.42, 0.8] },
+  bull: { meat: 96, r: 19, speed: 26, from: 11, band: [0.32, 0.72] },
   deer: { meat: 56, r: 14, speed: 120, fast: true, from: 11, band: [0, 0.26] },
-  bear: { meat: 144, r: 23, speed: 12, from: 16, band: [0.22, 0.62] },
-  dino: { meat: 220, r: 27, speed: 10, from: 21, band: [0.08, 0.5] },
+  bear: { meat: 144, r: 23, speed: 24, from: 16, band: [0.22, 0.62] },
+  dino: { meat: 220, r: 27, speed: 20, from: 21, band: [0.08, 0.5] },
   stag: { meat: 84, r: 15, speed: 138, fast: true, from: 21, band: [0, 0.26] },
 };
 // Opening herd, as point-mirrored pairs.

@@ -535,11 +535,14 @@ export function drawCastle(ctx, team, x, y, hp, flash) {
   label(ctx, String(hp), x, y - 77 * CASTLE.scale, 20);
 }
 
-export function drawTower(ctx, x, y, team, hpFrac, flash, born = 1, t = 0, showHp = true) {
+// solid: 1 for an ordinary tower; lower lets whatever stands behind it show through its
+// stonework, while its outline and flag stay at full strength.
+export function drawTower(ctx, x, y, team, hpFrac, flash, born = 1, t = 0, showHp = true, solid = 1) {
   const c = TEAM_COL[team], sc = born < 1 ? Math.max(0.01, easeOutBack(born)) : 1;
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(sc, sc);
+  ctx.globalAlpha *= solid;
   shadow(ctx, 0, 6, 19, 7);
   stone(ctx, -12, -34, 24, 40, 3);
   bricks(ctx, -12, -34, 24, 40, 4);
@@ -557,6 +560,19 @@ export function drawTower(ctx, x, y, team, hpFrac, flash, born = 1, t = 0, showH
   ctx.fillStyle = c.light;
   poly(ctx, [-7, -53, 0, -65, -1, -53]);
   ctx.fill();
+  if (solid < 1) {
+    // Redraw the outline over the faded stone so the tower still reads as a tower.
+    ctx.globalAlpha /= solid;
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = STONE_LINE;
+    for (const [bx, by, bw, bh, br] of [[-12, -34, 24, 40, 3], [-16, -44, 32, 12, 2], [-16, -50, 8, 8, 1.5], [-4, -50, 8, 8, 1.5], [8, -50, 8, 8, 1.5]]) {
+      rr(ctx, bx, by, bw, bh, br);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = c.dark;
+    poly(ctx, [-13, -50, 13, -50, 0, -68]);
+    ctx.stroke();
+  }
   flag(ctx, 0, -66, 12, team, t, 0.8);
   hitFlash(ctx, 0, -24, 18, 34, flash);
   ctx.restore();

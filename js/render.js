@@ -282,7 +282,13 @@ export class Renderer {
       }
       for (const tw of lane.towers) {
         const p = b.lanePoint(li, tw.slot);
-        add(p.y, () => S.drawTower(ctx, p.x, p.y, tw.team, tw.hp / tw.maxHp, tw.flash, tw.born, t));
+        // A tower with troops standing behind it turns see-through so they can be seen.
+        const hides = lane.cols.some(col => col.units.some(u => {
+          const q = b.rowPoint(li, u.vis, u.lat);
+          return Math.abs(q.x - p.x) < 22 && q.y < p.y + 2 && q.y > p.y - 62;
+        }));
+        tw.solid = lerp(tw.solid ?? 1, hides ? 0.3 : 1, 0.2);
+        add(p.y, () => S.drawTower(ctx, p.x, p.y, tw.team, tw.hp / tw.maxHp, tw.flash, tw.born, t, true, tw.solid));
       }
       for (const col of lane.cols) {
         for (const u of col.units) {
