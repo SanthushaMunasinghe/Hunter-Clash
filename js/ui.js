@@ -1,5 +1,5 @@
 import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT, POINTS } from './config.js';
-import { cardBlocker, cardCost } from './cards.js';
+import { cardBlocker, cardCost, cardUnits } from './cards.js';
 import { checkpointsHeld } from './rules.js';
 import { cardIcon, meatIconURL, arrowIconURL, damageIconURL, starIconURL } from './sprites.js';
 
@@ -30,7 +30,7 @@ export class UI {
     for (let i = 0; i < HAND_SIZE; i++) {
       const el = document.createElement('div');
       el.className = 'card locked';
-      el.innerHTML = '<div class="name"></div><img class="art" alt="" draggable="false">'
+      el.innerHTML = '<div class="name"></div><img class="art" alt="" draggable="false"><div class="count"></div>'
         + `<div class="cost"><img alt="" draggable="false" src="${meat}"><b></b></div>`;
       $('cards').appendChild(el);
       this.cardEls.push(el);
@@ -227,6 +227,12 @@ export class UI {
         el.animate([{ transform: 'scale(0.75)' }, { transform: 'scale(1)' }], { duration: 200, easing: 'ease-out' });
       });
       if (id) this.put('cost' + i, cardCost(m.teams[BLUE], id), v => { el.querySelector('.cost b').textContent = v; });
+      // How many units a troop card sends. It grows with the player's hunting.
+      this.put('count' + i, id ? cardUnits(m.teams[BLUE], id) : 0, v => {
+        const tag = el.querySelector('.count');
+        tag.textContent = v ? 'x' + v : '';
+        if (v) tag.animate([{ transform: 'scale(1.5)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
+      });
       let cls = 'card';
       if (!id) cls += ' empty';
       else {

@@ -29,7 +29,7 @@ The number over an animal is its health and its meat in one. An arrow takes its 
 
 ## Troops
 
-A troop card sends single units: three warriors, three archers or one giant. They step out of the home platform by your gate and walk up to join your column on that road.
+A troop card sends single units: three warriors, three archers or one giant to start with. Troop cards grow with your hunting. A volley is worth arrows × damage; once yours is worth double the opening volley (24, whether that is two arrows of 12 or one of 24) every troop card costs double and sends 5 warriors or archers, or 2 giants. At triple (36) it costs triple and sends 8, or 3 giants. The number on the card (`x5`) shows what it sends. Both sides play by this; the table is `MUSTER` in `js/config.js`. They step out of the home platform by your gate and walk up to join your column on that road.
 
 | | What it is for | Weakness |
 |---|---|---|

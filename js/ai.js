@@ -1,6 +1,6 @@
 import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT } from './config.js';
 import { simulateVolley } from './arrow.js';
-import { cardBlocker, cardCost, basePoint } from './cards.js';
+import { cardBlocker, cardCost, cardUnits, basePoint } from './cards.js';
 import { towerSpots, frontier, homeSlot, rowsOf, placement, placeUnits, newUnit, laneGuard, laneFight } from './rules.js';
 import { rand, pick, lerp, clamp } from './utils.js';
 
@@ -76,9 +76,9 @@ function deepLaneOptions(m, team, lvl) {
     if (CARDS[id].zone === 'lane') {
       for (const li of [0, 1]) {
         const lanes = copy();
-        if (!placeUnits(lanes[li], team, id, kind => newUnit(-1, team, kind))) continue;
+        if (!placeUnits(lanes[li], team, id, cardUnits(T, id), kind => newUnit(-1, team, kind))) continue;
         // Dearer troops have to earn their extra cost.
-        const score = 30 + lookAhead(m, lanes, team, lvl.lookahead) - base - (CARDS[id].cost - CARDS.melee.cost) + rand(2);
+        const score = 30 + lookAhead(m, lanes, team, lvl.lookahead) - base - (cardCost(T, id) - cardCost(T, 'melee')) + rand(2);
         opts.push({ idx, target: { lane: li }, score });
       }
     } else if (CARDS[id].zone === 'checkpoint') {
@@ -138,7 +138,7 @@ export function chooseCard(m, team, lvl) {
 
     if (zone === 'lane') {
       for (const li of [0, 1]) {
-        if (!placement(m.lanes[li], team, id)) continue;
+        if (!placement(m.lanes[li], team, id, cardUnits(T, id))) continue;
         const info = lanes[li];
         let score = 40 + rand(10);
         if (info.threat) score += Math.max(0, info.threat - info.own) * 0.5 + info.urgency * 30;

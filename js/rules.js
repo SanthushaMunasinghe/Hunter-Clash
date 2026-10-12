@@ -133,14 +133,14 @@ function musterSlot(lane, team) {
   return home + dir * room(lane, team, home, dir * (goal - home));
 }
 
-// Where a team's column would stand with a `kind` card's units added to it: { front,
+// Where a team's column would stand with `count` more units of `kind` added to it: { front,
 // slot } with `slot` the forward-most row the newcomers fall into, or null if there is
 // no room for them. New units never move the front line unless the column already reaches
 // back to the home slot; then the whole column is pushed forward to make room, which
 // the enemy can block.
-export function placement(lane, team, kind) {
+export function placement(lane, team, kind, count) {
   const col = lane.cols[team], dir = dirOf(team), home = homeSlot(team);
-  const fresh = Array.from({ length: UNITS[kind].count }, () => ({ kind }));
+  const fresh = Array.from({ length: count }, () => ({ kind }));
   const rows = pack([...col.units, ...fresh]);
   let front = col.units.length ? col.front : musterSlot(lane, team);
   const push = rows.length - (dir * (front - home) + 1);
@@ -151,13 +151,13 @@ export function placement(lane, team, kind) {
   return { front, slot: front - dir * rows.findIndex(row => row.units.some(u => fresh.includes(u))) };
 }
 
-// Plays a troop card: adds its units to the team's column. make(kind) builds
-// one unit. Returns the new units, or null if the lane has no room for them.
-export function placeUnits(lane, team, kind, make) {
-  const spot = placement(lane, team, kind);
+// Plays a troop card: adds `count` units of `kind` to the team's column. make(kind)
+// builds one unit. Returns the new units, or null if the lane has no room for them.
+export function placeUnits(lane, team, kind, count, make) {
+  const spot = placement(lane, team, kind, count);
   if (!spot) return null;
   const col = lane.cols[team], fresh = [];
-  for (let i = 0; i < UNITS[kind].count; i++) fresh.push(make(kind));
+  for (let i = 0; i < count; i++) fresh.push(make(kind));
   col.front = spot.front;
   col.units.push(...fresh);
   return fresh;

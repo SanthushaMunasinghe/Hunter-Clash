@@ -266,6 +266,19 @@ img { -webkit-user-drag: none; }
 .card.tower .name { background: #a45bd6; }
 .card.arrow .name, .card.damage .name { background: #2f9c57; }
 .card .art { height: 60px; max-width: 100%; object-fit: contain; margin-top: 2px; pointer-events: none; }
+.card .count {
+  position: absolute;
+  top: 25px;
+  right: 3px;
+  padding: 0 6px 1px;
+  font-size: 14px;
+  line-height: 1.25;
+  color: #fff;
+  background: var(--ink);
+  border-radius: 9px;
+  pointer-events: none;
+}
+.card .count:empty { display: none; }
 .card .cost {
   position: absolute;
   bottom: 4px;

@@ -44,7 +44,7 @@ export const ARROW = {
   rank: 12, fan: 0.01, abreast: 5,
 };
 
-// Lane troops, one unit each. count: how many a card sends. size: spaces it takes up in
+// Lane troops, one unit each. size: spaces it takes up in
 // a row. range: how many slots ahead its row can hit. dmg: damage per blow by target.
 // Three warriors fell a warrior in two blows between them. An archer dies to any blow
 // but shoots from the rows behind: its range is half the gap between two checkpoints,
@@ -53,9 +53,9 @@ export const ARROW = {
 // and breaking guard towers (2 blows, where a full row of warriors needs 4).
 // A guard tower shoots one arrow a turn at the enemy's front row.
 export const UNITS = {
-  melee: { count: 3, size: 1, hp: 12, range: 1, dmg: { melee: 8, archer: 8, giant: 8, tower: 3, castle: 8 } },
-  archer: { count: 3, size: 1, hp: 6, range: 3, dmg: { melee: 4, archer: 6, giant: 4, tower: 3, castle: 3 } },
-  giant: { count: 1, size: 2, hp: 36, range: 1, dmg: { melee: 24, archer: 24, giant: 24, tower: 30, castle: 25 } },
+  melee: { size: 1, hp: 12, range: 1, dmg: { melee: 8, archer: 8, giant: 8, tower: 3, castle: 8 } },
+  archer: { size: 1, hp: 6, range: 3, dmg: { melee: 4, archer: 6, giant: 4, tower: 3, castle: 3 } },
+  giant: { size: 2, hp: 36, range: 1, dmg: { melee: 24, archer: 24, giant: 24, tower: 30, castle: 25 } },
   tower: { hp: 60, range: 3, dmg: { melee: 4, archer: 4, giant: 4 } },
 };
 
@@ -83,6 +83,16 @@ export const HERD_START = ['sheep', 'sheep', 'rabbit'];
 // `perTurn` at a time. Below `min` the wait is skipped. New kinds of prey may push the
 // herd up to `max` when they first arrive.
 export const HERD = { size: 6, min: 4, max: 8, delay: 2, perTurn: 2 };
+
+// A side's troop cards grow with its hunting. Its volley is worth arrows x damage; once
+// that is `power` times the opening volley (one arrow of ARROW.damage), every troop card
+// costs `price` times as much and sends `units` warriors or archers, or `giants` giants.
+// The last line a side has reached applies. Both sides play by this.
+export const MUSTER = [
+  { power: 1, price: 1, units: 3, giants: 1 },
+  { power: 2, price: 2, units: 5, giants: 2 },
+  { power: 3, price: 3, units: 8, giants: 3 },
+];
 
 // zone: where a card is dropped. step: how much dearer a card gets each time it is bought.
 // Only +Damage does; every other card keeps its price all match.

@@ -2,7 +2,7 @@ import { BLUE, RED, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT, POINTS } 
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
 import { collectObstacles, stepArrow, previewPaths, volleyShots, pierce } from './arrow.js';
-import { newTeam, dealHand, playCard, basePoint } from './cards.js';
+import { newTeam, dealHand, playCard, basePoint, muster } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
 import { newLane, homeSlot, rowsOf, rowSpots, laneGuard, laneFight, checkpointsHeld } from './rules.js';
 import { dist, clamp, lerp, rand, easeOut } from './utils.js';
@@ -162,13 +162,13 @@ export class Game {
     for (let i = 0; i < lvl.maxCards && !m.over; i++) {
       const act = chooseCard(m, RED, lvl);
       if (!act) break;
-      const id = m.teams[RED].hand[act.idx], T = m.teams[RED];
+      const id = m.teams[RED].hand[act.idx], T = m.teams[RED], was = muster(T);
       if (!this.play(m, RED, act.idx, act.target)) break;
       // An upgrade is spelt out, and left up long enough to read.
-      const upgrade = CARDS[id].zone === 'base';
-      this.emit('toast', id === 'arrow' ? `Enemy +1 Arrow: now shoots ${T.arrows} arrows a hunt`
-        : id === 'damage' ? `Enemy +Damage: its arrows now do ${T.damage} DMG`
-          : `Enemy played ${CARDS[id].name}`);
+      const upgrade = CARDS[id].zone === 'base', now = muster(T);
+      this.emit('toast', (id === 'arrow' ? `Enemy +1 Arrow: ${T.arrows} arrows a hunt`
+        : id === 'damage' ? `Enemy +Damage: ${T.damage} DMG an arrow`
+          : `Enemy played ${CARDS[id].name}`) + (now !== was ? `. Its troop cards now send ${now.units}` : ''));
       await this.sleep(m, upgrade ? 1.2 : 0.55);
     }
   }
@@ -198,7 +198,7 @@ export class Game {
   // their place in the column; nothing fights until the turn ends. Upgrades go straight
   // onto the castle.
   play(m, team, idx, target) {
-    const id = m.teams[team].hand[idx];
+    const id = m.teams[team].hand[idx], was = muster(m.teams[team]);
     const ent = playCard(m, team, idx, target);
     if (!ent) return false;
     this.sfx.play('place');
@@ -208,6 +208,9 @@ export class Game {
       const T = m.teams[team];
       this.fx.text(p.x, p.y - 30, id === 'arrow' ? `+1 ARROW = X${T.arrows}` : `+${UPGRADE.damage} = ${T.damage} DMG`, '#ffcf3f', false, 17);
       this.sfx.play('capture');
+      // Stronger hunting makes troop cards bigger and dearer; say so when it happens.
+      const now = muster(T);
+      if (team === BLUE && now !== was) this.emit('toast', `Troop cards now send ${now.units} units for ${now.price}x the price`);
     } else {
       p = m.board.lanePoint(ent.lane, ent.units ? homeSlot(team) : ent.slot);
     }

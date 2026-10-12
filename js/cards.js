@@ -1,4 +1,4 @@
-import { CARDS, CARD_ORDER, HAND_SIZE, DEAL, START_MEAT, UNITS, ARROW, UPGRADE } from './config.js';
+import { CARDS, CARD_ORDER, HAND_SIZE, DEAL, START_MEAT, UNITS, ARROW, UPGRADE, MUSTER } from './config.js';
 import { dist, clamp, lerp } from './utils.js';
 import { towerSpots, dirOf, homeSlot, placement, placeUnits, newUnit, checkpointsHeld } from './rules.js';
 
@@ -58,9 +58,22 @@ function refill(m, team, idx) {
   hand[idx] = draw(pool, weights) ?? (weights[hand[idx]] > 0 ? hand[idx] : null);
 }
 
-// Upgrades get dearer each time they are bought.
+// How far a team's troop cards have grown: the last line of MUSTER its volley has reached.
+export function muster(T) {
+  const power = (T.arrows * T.damage) / ARROW.damage;
+  return MUSTER.reduce((best, tier) => (power >= tier.power ? tier : best));
+}
+
+// How many units a troop card sends for this team; 0 for any other card.
+export function cardUnits(T, id) {
+  return CARDS[id].zone !== 'lane' ? 0 : id === 'giant' ? muster(T).giants : muster(T).units;
+}
+
+// Some upgrades get dearer each time they are bought, and troop cards cost more as they
+// grow to send more units.
 export function cardCost(T, id) {
   const card = CARDS[id];
+  if (card.zone === 'lane') return card.cost * muster(T).price;
   return card.cost + (card.step || 0) * (T.bought[id] || 0);
 }
 
@@ -68,7 +81,7 @@ export function cardCost(T, id) {
 export function cardBlocker(m, team, id) {
   const zone = CARDS[id].zone;
   if (m.teams[team].meat < cardCost(m.teams[team], id)) return 'meat';
-  if (zone === 'lane' && !m.lanes.some(lane => placement(lane, team, id))) return 'spot';
+  if (zone === 'lane' && !m.lanes.some(lane => placement(lane, team, id, cardUnits(m.teams[team], id)))) return 'spot';
   if (zone === 'checkpoint' && !towerSpots(m, team).length) return 'spot';
   return null;
 }
@@ -88,7 +101,7 @@ export function dropOptions(m, team, id) {
   if (zone === 'lane') {
     return {
       lanes: m.lanes.map((lane, li) => {
-        const spot = placement(lane, team, id);
+        const spot = placement(lane, team, id, cardUnits(m.teams[team], id));
         return spot && { lane: li, from: homeSlot(team), slot: spot.slot, ...m.board.lanePoint(li, spot.slot) };
       }),
     };
@@ -127,7 +140,7 @@ export function playCard(m, team, idx, target) {
   if (card.zone === 'lane') {
     // New units appear on the home platform and walk up to their place in the column.
     const home = homeSlot(team) - dirOf(team) * 0.6;
-    const units = placeUnits(m.lanes[target.lane], team, id, kind => ({
+    const units = placeUnits(m.lanes[target.lane], team, id, cardUnits(T, id), kind => ({
       ...newUnit(m.nextId++, team, kind),
       vis: home, lat: 0, walking: false, lunge: 0, lx: 0, ly: 0, flash: 0,
     }));
