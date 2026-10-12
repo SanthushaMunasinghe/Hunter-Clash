@@ -1,7 +1,7 @@
 import { BLUE, RED, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT, POINTS } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
-import { collectObstacles, stepArrow, previewPaths, volleyShots, pierce } from './arrow.js';
+import { collectObstacles, stepArrow, previewPaths, volleyShots, volleyDamage, pierce } from './arrow.js';
 import { newTeam, dealHand, playCard, basePoint, muster } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
 import { newLane, homeSlot, rowsOf, rowSpots, laneGuard, laneFight, checkpointsHeld } from './rules.js';
@@ -166,9 +166,8 @@ export class Game {
       if (!this.play(m, RED, act.idx, act.target)) break;
       // An upgrade is spelt out, and left up long enough to read.
       const upgrade = CARDS[id].zone === 'base', now = muster(T);
-      this.emit('toast', (id === 'arrow' ? `Enemy +1 Arrow: ${T.arrows} arrows a hunt`
-        : id === 'damage' ? `Enemy +Damage: ${T.damage} DMG an arrow`
-          : `Enemy played ${CARDS[id].name}`) + (now !== was ? `. Its troop cards now send ${now.units}` : ''));
+      this.emit('toast', (upgrade ? `Enemy ${CARDS[id].name}: its hunt now does ${volleyDamage(T)} DMG`
+        : `Enemy played ${CARDS[id].name}`) + (now !== was ? `. Its troop cards now send ${now.units}` : ''));
       await this.sleep(m, upgrade ? 1.2 : 0.55);
     }
   }
@@ -206,7 +205,7 @@ export class Game {
     if (ent.upgrade) {
       p = basePoint(m, team);
       const T = m.teams[team];
-      this.fx.text(p.x, p.y - 30, id === 'arrow' ? `+1 ARROW = X${T.arrows}` : `+${UPGRADE.damage} = ${T.damage} DMG`, '#ffcf3f', false, 17);
+      this.fx.text(p.x, p.y - 30, `${id === 'arrow' ? '+1 ARROW' : '+' + UPGRADE.damage} = ${volleyDamage(T)} DMG`, '#ffcf3f', false, 17);
       this.sfx.play('capture');
       // Stronger hunting makes troop cards bigger and dearer; say so when it happens.
       const now = muster(T);
@@ -225,11 +224,11 @@ export class Game {
   fire(m, team, angle) {
     for (const s of volleyShots(m, team, angle)) {
       m.arrows.push({
-        team, x: s.x, y: s.y, dx: s.dx, dy: s.dy, power: m.teams[team].damage,
+        team, x: s.x, y: s.y, dx: s.dx, dy: s.dy, power: s.power, extra: s.extra,
         bouncesLeft: ARROW.bounces, done: false, life: 0, fade: 0, trail: [],
       });
     }
-    m.teams[team].shots += m.teams[team].arrows;
+    m.teams[team].hunts++;
     m.volley = { team };
     this.sfx.play('shoot');
     return new Promise(res => { m.wait.arrow = res; });

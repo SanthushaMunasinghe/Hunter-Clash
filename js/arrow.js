@@ -92,21 +92,27 @@ export function pierce(ar, a) {
   return { gain, pass: a.left <= 0 && ar.power > 0 };
 }
 
-// A team's volley as it leaves the bow: every arrow it owns at once, side by side across
-// the aim line and fanned out very slightly, so the volley as a whole flies where it was
-// aimed. Each shot is { x, y, angle, dx, dy }.
+// What each arrow of a team's volley can do, first arrow first: it carries the full
+// hunting damage, and every additional arrow ARROW.extra of that. T: { arrows, damage }.
+export const arrowPowers = T =>
+  Array.from({ length: T.arrows }, (_, i) => (i ? Math.floor(T.damage * ARROW.extra) : T.damage));
+
+// The damage of a team's whole volley.
+export const volleyDamage = T => arrowPowers(T).reduce((sum, p) => sum + p, 0);
+
+// A team's volley as it leaves the bow: every arrow it owns at once. The full arrow flies
+// exactly where it was aimed; the additional ones go alongside it, to the right and left
+// by turns, fanned out very slightly. Each shot is { x, y, angle, dx, dy, power, extra }.
 export function volleyShots(m, team, angle) {
-  const L = m.board.castles[team].launch, n = m.teams[team].arrows;
-  const squeeze = Math.min(1, (ARROW.abreast - 1) / Math.max(1, n - 1));
-  const shots = [];
-  for (let i = 0; i < n; i++) {
-    const k = (i - (n - 1) / 2) * squeeze, a = angle + k * ARROW.fan;
-    shots.push({
+  const L = m.board.castles[team].launch, powers = arrowPowers(m.teams[team]);
+  const squeeze = Math.min(1, (ARROW.abreast - 1) / Math.max(1, powers.length - 1));
+  return powers.map((power, i) => {
+    const k = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * squeeze, a = angle + k * ARROW.fan;
+    return {
       x: L.x - Math.sin(angle) * k * ARROW.rank, y: L.y + Math.cos(angle) * k * ARROW.rank,
-      angle: a, dx: Math.cos(a), dy: Math.sin(a),
-    });
-  }
-  return shots;
+      angle: a, dx: Math.cos(a), dy: Math.sin(a), power, extra: i > 0,
+    };
+  });
 }
 
 // A frozen copy of the field for dry runs. With `lead`, animals carry their current
@@ -127,7 +133,7 @@ function freeze(m, team, lead) {
 function dryVolley(m, team, angle, obs, maxContacts, paths) {
   const res = { meat: 0, castle: 0 };
   const arrows = volleyShots(m, team, angle).map(s => ({
-    x: s.x, y: s.y, dx: s.dx, dy: s.dy, power: m.teams[team].damage,
+    x: s.x, y: s.y, dx: s.dx, dy: s.dy, power: s.power,
     bouncesLeft: Math.min(ARROW.bounces, maxContacts - 1), done: false,
   }));
   const onHit = (o, ar) => {

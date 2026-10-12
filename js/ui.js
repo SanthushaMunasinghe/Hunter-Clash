@@ -1,6 +1,7 @@
-import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT, POINTS } from './config.js';
+import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT, POINTS, ARROW, UPGRADE } from './config.js';
 import { cardBlocker, cardCost, cardUnits } from './cards.js';
 import { checkpointsHeld } from './rules.js';
+import { volleyDamage } from './arrow.js';
 import { cardIcon, meatIconURL, arrowIconURL, damageIconURL, starIconURL } from './sprites.js';
 
 const $ = id => document.getElementById(id);
@@ -30,7 +31,7 @@ export class UI {
     for (let i = 0; i < HAND_SIZE; i++) {
       const el = document.createElement('div');
       el.className = 'card locked';
-      el.innerHTML = '<div class="name"></div><img class="art" alt="" draggable="false"><div class="count"></div>'
+      el.innerHTML = '<div class="name"></div><img class="art" alt="" draggable="false"><div class="note"></div>'
         + `<div class="cost"><img alt="" draggable="false" src="${meat}"><b></b></div>`;
       $('cards').appendChild(el);
       this.cardEls.push(el);
@@ -161,6 +162,17 @@ export class UI {
     ghost.classList.toggle('show', visible);
   }
 
+  // The line under a card's picture: how many units a troop card sends (it grows with
+  // the player's hunting), or how much damage an upgrade adds. The new arrow from
+  // +1 Arrow is a smaller one, so that is its own damage, not the full arrow's.
+  cardNote(T, id) {
+    const n = cardUnits(T, id);
+    if (n) return `${n} UNIT${n > 1 ? 'S' : ''}`;
+    if (id === 'damage') return `+${UPGRADE.damage} DAMAGE`;
+    if (id === 'arrow') return `+${Math.floor(T.damage * ARROW.extra)} DAMAGE`;
+    return '';
+  }
+
   // ---------------------------------------------------------------- per-frame sync
 
   put(key, value, apply) {
@@ -196,7 +208,7 @@ export class UI {
     // Quiver and hunting damage, for both sides.
     for (const [team, tag] of [[BLUE, 'blue'], [RED, 'red']]) {
       this.put('arrows' + team, m.teams[team].arrows, v => { $('arrows-' + tag).textContent = v; });
-      this.put('dmg' + team, m.teams[team].damage, v => { $('dmg-' + tag).textContent = v; });
+      this.put('dmg' + team, volleyDamage(m.teams[team]), v => { $('dmg-' + tag).textContent = v; });
       // Points: castle health plus checkpoints held. They decide a match that reaches the turn limit.
       this.put('pts' + team, this.game.points(m, team), v => { $('pts-' + tag).textContent = v; });
     }
@@ -227,11 +239,11 @@ export class UI {
         el.animate([{ transform: 'scale(0.75)' }, { transform: 'scale(1)' }], { duration: 200, easing: 'ease-out' });
       });
       if (id) this.put('cost' + i, cardCost(m.teams[BLUE], id), v => { el.querySelector('.cost b').textContent = v; });
-      // How many units a troop card sends. It grows with the player's hunting.
-      this.put('count' + i, id ? cardUnits(m.teams[BLUE], id) : 0, v => {
-        const tag = el.querySelector('.count');
-        tag.textContent = v ? 'x' + v : '';
-        if (v) tag.animate([{ transform: 'scale(1.5)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
+      // What playing the card gets you, in a line under its picture.
+      this.put('note' + i, id ? this.cardNote(m.teams[BLUE], id) : '', v => {
+        const tag = el.querySelector('.note');
+        tag.textContent = v;
+        if (v) tag.animate([{ transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'ease-out' });
       });
       let cls = 'card';
       if (!id) cls += ' empty';

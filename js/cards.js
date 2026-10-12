@@ -1,6 +1,7 @@
 import { CARDS, CARD_ORDER, HAND_SIZE, DEAL, START_MEAT, UNITS, ARROW, UPGRADE, MUSTER } from './config.js';
 import { dist, clamp, lerp } from './utils.js';
 import { towerSpots, dirOf, homeSlot, placement, placeUnits, newUnit, checkpointsHeld } from './rules.js';
+import { volleyDamage } from './arrow.js';
 
 const SNAP = 64;       // how close a tower must be dropped to a checkpoint to snap onto it
 const BASE_SNAP = 95;  // how close an upgrade must be dropped to your own castle
@@ -10,7 +11,7 @@ export function newTeam() {
   return {
     meat: START_MEAT, hand: new Array(HAND_SIZE).fill(null),
     arrows: 1, damage: ARROW.damage, bought: { arrow: 0, damage: 0 },
-    shots: 0, hunted: 0, // arrows loosed and meat they brought in, over the whole match
+    hunts: 0, hunted: 0, // volleys loosed and meat they brought in, over the whole match
   };
 }
 
@@ -60,7 +61,7 @@ function refill(m, team, idx) {
 
 // How far a team's troop cards have grown: the last line of MUSTER its volley has reached.
 export function muster(T) {
-  const power = (T.arrows * T.damage) / ARROW.damage;
+  const power = volleyDamage(T) / ARROW.damage;
   return MUSTER.reduce((best, tier) => (power >= tier.power ? tier : best));
 }
 

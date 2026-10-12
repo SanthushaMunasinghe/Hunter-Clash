@@ -1,5 +1,5 @@
-import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT } from './config.js';
-import { simulateVolley } from './arrow.js';
+import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT, UPGRADE } from './config.js';
+import { simulateVolley, volleyDamage } from './arrow.js';
 import { cardBlocker, cardCost, cardUnits, basePoint } from './cards.js';
 import { towerSpots, frontier, homeSlot, rowsOf, placement, placeUnits, newUnit, laneGuard, laneFight } from './rules.js';
 import { rand, pick, lerp, clamp } from './utils.js';
@@ -117,9 +117,11 @@ export function chooseCard(m, team, lvl) {
   // Upgrades are judged by what they should earn back over the turns still to come,
   // against what they cost, and are a luxury while the gate is under threat.
   const horizon = Math.max(0, Math.min(TURN_LIMIT, 17) - m.turn);
-  const perArrow = T.shots ? T.hunted / T.shots : 13;
+  // A hunt is taken to bring in meat in proportion to the damage of the volley.
+  const volley = volleyDamage(T), perHunt = T.hunts ? T.hunted / T.hunts : volley * 0.9;
   const upgradeScore = id => {
-    const gain = id === 'arrow' ? perArrow * Math.pow(0.8, T.arrows - 1) : T.arrows * perArrow * 0.3;
+    const better = volleyDamage({ arrows: T.arrows + (id === 'arrow'), damage: T.damage + (id === 'damage' ? UPGRADE.damage : 0) });
+    const gain = perHunt * (better - volley) / volley;
     return 28 + 12 * (gain * horizon) / cardCost(T, id) + (lvl.eco ?? 0) - danger * 50 + rand(6);
   };
 

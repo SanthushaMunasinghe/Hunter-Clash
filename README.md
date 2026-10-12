@@ -18,18 +18,18 @@ The deal is random but weighted. Warriors, Archers and the two upgrades all turn
 
 The herd is small, about six animals. A kill comes back two rounds later.
 
-The number over an animal is its health and its meat in one. An arrow takes its damage off that number and you bank exactly as much, so `12 DMG` means +12 meat per arrow that lands (or whatever the animal has left). An arrow that kills an animal with damage to spare flies straight on through it with what is left, and can go through several; the aim preview shows that stretch as a fainter line. The damage per arrow is always shown at the foot of your castle, with `X2` or `X3` when the volley has more than one arrow, and turns green with the new figure while you hold an upgrade card over the castle.
+The number over an animal is its health and its meat in one. An arrow takes its damage off that number and you bank exactly as much (or whatever the animal has left). An arrow that kills an animal with damage to spare flies straight on through it with what is left, and can go through several; the aim preview shows that stretch as a fainter line. The damage of your whole volley, every arrow added up, is always shown at the foot of your castle (`24 DMG`), and turns green with the new figure while you hold an upgrade card over the castle.
 
 - **Quick prey** (rabbit, deer, stag; gold number under a red target mark) is the exception: any hit takes all of it, and it carries a big bounty for its size (36, 56 and 84). It keeps to the middle of the field, far from both castles, moves fast, and the aim preview does not lead it for you.
 - **Slow prey** (sheep, cow, bull, bear, dino) lasts several hits. The cheapest kinds graze nearest the castles; richer ones hold more meat and roam further out.
 - Nothing ever stands still.
 - Richer prey arrives every 5 turns: cow on 6, bull and deer on 11, bear on 16, dino and stag on 21.
 
-**+1 Arrow** adds an arrow to every volley. **+Damage** adds 5 hunting damage (you start on 12), so every arrow brings in more. +Damage costs 10 the first time and 10 more each time after that. +1 Arrow always costs 40, and three arrows is the most you can have. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
+**+1 Arrow** adds a smaller arrow to every volley, flying beside the full one and doing half its damage (three arrows is the most you can have). **+Damage** adds 2 to the full arrow (you start on 12), and so 1 to each smaller one. +Damage costs 10 the first time and 10 more each time after that; +1 Arrow always costs 40. Each upgrade card says what it adds. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
 
 ## Troops
 
-A troop card sends single units: three warriors, three archers or one giant to start with. Troop cards grow with your hunting. A volley is worth arrows × damage; once yours is worth double the opening volley (24, whether that is two arrows of 12 or one of 24) every troop card costs double and sends 5 warriors or archers, or 2 giants. At triple (36) it costs triple and sends 8, or 3 giants. The number on the card (`x5`) shows what it sends. Both sides play by this; the table is `MUSTER` in `js/config.js`. They step out of the home platform by your gate and walk up to join your column on that road.
+A troop card sends single units: three warriors, three archers or one giant to start with. Troop cards grow with your hunting. Once the damage of your whole volley is double the opening volley (24) every troop card costs double and sends 5 warriors or archers, or 2 giants. At triple (36) it costs triple and sends 8, or 3 giants. The line on the card (`5 UNITS`) shows what it sends. Both sides play by this; the table is `MUSTER` in `js/config.js`. They step out of the home platform by your gate and walk up to join your column on that road.
 
 | | What it is for | Weakness |
 |---|---|---|

@@ -33,14 +33,15 @@ export const CASTLE = {
 
 // An arrow bounces off the field edge up to `bounces` times and stops in the first animal
 // it hits, unless it kills it with damage to spare: then it flies on through with what
-// is left. damage is the starting hunting damage: the meat one arrow can take in all.
+// is left. damage is the starting hunting damage: the meat the first arrow can take in
+// all. Every additional arrow a side buys is a smaller one that does `extra` of that.
 // castleDamage is the token chip an arrow takes off the enemy castle if it gets that
 // far; it never grows.
-// A volley leaves the bow all at once: arrows side by side, `rank` px apart across the
-// aim line, each turned `fan` radians out from its neighbour. Past `abreast` arrows the
+// A volley leaves the bow all at once: the full arrow down the aim line and the smaller
+// ones to either side of it, `rank` px apart and each turned `fan` radians further out. Past `abreast` arrows the
 // rank closes up instead of growing any wider.
 export const ARROW = {
-  speed: 800, radius: 6, step: 3, bounces: 5, damage: 12, castleDamage: 1,
+  speed: 800, radius: 6, step: 3, bounces: 5, damage: 12, extra: 0.5, castleDamage: 1,
   rank: 12, fan: 0.01, abreast: 5,
 };
 
@@ -84,8 +85,8 @@ export const HERD_START = ['sheep', 'sheep', 'rabbit'];
 // herd up to `max` when they first arrive.
 export const HERD = { size: 6, min: 4, max: 8, delay: 2, perTurn: 2 };
 
-// A side's troop cards grow with its hunting. Its volley is worth arrows x damage; once
-// that is `power` times the opening volley (one arrow of ARROW.damage), every troop card
+// A side's troop cards grow with its hunting. Once the damage of its whole volley is
+// `power` times the opening volley (one arrow of ARROW.damage), every troop card
 // costs `price` times as much and sends `units` warriors or archers, or `giants` giants.
 // The last line a side has reached applies. Both sides play by this.
 export const MUSTER = [
@@ -125,7 +126,7 @@ export const DEAL = {
 };
 export const START_MEAT = 0;
 // damage: hunting damage added per +Damage card. maxArrows: the biggest volley there is.
-export const UPGRADE = { damage: 5, maxArrows: 3 };
+export const UPGRADE = { damage: 2, maxArrows: 3 };
 
 // A match never runs long. A castle that falls loses the match on the spot. If both are
 // still standing once this many turns are up, it goes on points: what is left of your

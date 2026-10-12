@@ -1,11 +1,12 @@
 import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, UPGRADE } from './config.js';
 import * as S from './sprites.js';
 import { cpOwner, homeSlot } from './rules.js';
-import { previewPaths, volleyShots } from './arrow.js';
+import { previewPaths, volleyShots, volleyDamage } from './arrow.js';
 import { dragAngle } from './input.js';
 import { seeded, rand, lerp, clamp, easeOut, TAU } from './utils.js';
 
 const NOCK = 14;
+const SMALL = 0.68; // how big an additional arrow is drawn beside the full one
 
 function trace(g, pts) {
   g.beginPath();
@@ -321,22 +322,22 @@ export class Renderer {
 
   // The volley on the string: every arrow the team will loose, side by side.
   drawNocked(ctx, m, team, angle) {
-    for (const s of volleyShots(m, team, angle)) S.drawArrow(ctx, s.x + s.dx * NOCK, s.y + s.dy * NOCK, s.angle, team);
+    for (const s of volleyShots(m, team, angle)) {
+      S.drawArrow(ctx, s.x + s.dx * NOCK, s.y + s.dy * NOCK, s.angle, team, s.extra ? SMALL : 1);
+    }
   }
 
-  // Always on at the foot of the player's castle: the meat one arrow takes off an animal,
-  // and how many arrows the volley has if it is more than one. While an upgrade card is
-  // held over the castle it shows what the card would make it, in green.
+  // Always on at the foot of the player's castle: the damage of the whole volley, every
+  // arrow added up. While an upgrade card is held over the castle it shows what the card
+  // would make it, in green.
   drawVolleyTag(ctx, m, drag, t) {
-    const T = m.teams[BLUE], c = m.board.castles[BLUE], size = 18;
+    const T = m.teams[BLUE], c = m.board.castles[BLUE];
     const held = drag && drag.onBoard && drag.target && drag.target.valid && CARDS[drag.id].zone === 'base' ? drag.id : null;
-    const damage = T.damage + (held === 'damage' ? UPGRADE.damage : 0), arrows = T.arrows + (held === 'arrow' ? 1 : 0);
-    const dmg = `${damage} DMG`, mult = arrows > 1 ? `X${arrows}` : '';
-    ctx.font = S.fontStr(size);
-    const w = ctx.measureText(dmg).width + (mult ? 6 + ctx.measureText(mult).width : 0);
+    const total = volleyDamage({
+      arrows: T.arrows + (held === 'arrow' ? 1 : 0), damage: T.damage + (held === 'damage' ? UPGRADE.damage : 0),
+    });
     const y = c.drawY + 30 - (held ? Math.abs(Math.sin(t * 6)) * 3 : 0);
-    S.label(ctx, dmg, c.x - w / 2, y, size, held === 'damage' ? '#8dff7a' : '#ffcf3f', 'left');
-    S.label(ctx, mult, c.x + w / 2, y, size, held === 'arrow' ? '#8dff7a' : '#fff', 'right');
+    S.label(ctx, `${total} DMG`, c.x, y, 18, held ? '#8dff7a' : '#ffcf3f');
   }
 
   // The looping hand demo shown on the first turn of a Noob match: press in the strip
@@ -392,12 +393,13 @@ export class Renderer {
     ctx.lineCap = 'butt';
 
     const flow = (t * 46) % 15;
+    let size = 3.4;
     const dots = (p, q, maxLen, a0, a1) => {
       const full = Math.hypot(q.x - p.x, q.y - p.y), len = Math.min(full, maxLen);
       for (let d = flow; d < len; d += 15) {
         const k = d / full, alpha = lerp(a0, a1, d / len);
         ctx.fillStyle = `rgba(${col},${alpha})`;
-        S.circle(ctx, lerp(p.x, q.x, k), lerp(p.y, q.y, k), 3.4);
+        S.circle(ctx, lerp(p.x, q.x, k), lerp(p.y, q.y, k), size);
         ctx.fill();
         ctx.strokeStyle = `rgba(31,36,51,${0.45 * Math.min(1, alpha * 1.6)})`;
         ctx.lineWidth = 1;
@@ -405,6 +407,7 @@ export class Renderer {
       }
     };
     for (const pts of paths) {
+      size = pts === paths[0] ? 3.4 : 2.4; // the additional arrows leave a finer line
       for (let i = 0; i + 1 < pts.length; i++) {
         const p = pts[i], q = pts[i + 1], prey = q.kind === 'animal';
         if (p.pass) dots(p, q, Infinity, 0.4, 0.4);
@@ -434,7 +437,7 @@ export class Renderer {
         const p = ar.trail[i - 1], q = ar.trail[i], k = i / ar.trail.length;
         ctx.strokeStyle = c.light;
         ctx.globalAlpha = k * 0.6 * alpha;
-        ctx.lineWidth = 2 + k * 5;
+        ctx.lineWidth = (2 + k * 5) * (ar.extra ? 0.6 : 1);
         ctx.beginPath();
         ctx.moveTo(p.x, p.y);
         ctx.lineTo(q.x, q.y);
@@ -442,7 +445,7 @@ export class Renderer {
       }
       ctx.lineCap = 'butt';
       ctx.globalAlpha = alpha;
-      S.drawArrow(ctx, ar.x, ar.y, Math.atan2(ar.dy, ar.dx), ar.team, 1.1);
+      S.drawArrow(ctx, ar.x, ar.y, Math.atan2(ar.dy, ar.dx), ar.team, ar.extra ? SMALL * 1.1 : 1.1);
     }
     ctx.globalAlpha = 1;
   }
