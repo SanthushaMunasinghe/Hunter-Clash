@@ -1,22 +1,64 @@
-import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, UNITS } from './config.js';
+import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, UNITS, ROW, MARCH } from './config.js';
 
 // Who may stand and move where, and how a lane fights. Pure functions over match state.
+//
+// A lane holds one column of troops per team and any guard towers:
+//   { cols: [{ front, units }, { front, units }], towers }
+// units are in the order they were sent, oldest first. They stand in rows one slot
+// apart, the first row on slot `front` and the rest stacked behind it toward home.
 
 // ------------------------------------------------------------------ lanes
 
 export const dirOf = team => (team === BLUE ? 1 : -1);
 export const homeSlot = team => (team === BLUE ? 0 : LANE_LEN);
 
-export const squadAt = (lane, slot) => lane.squads.find(s => s.slot === slot);
+export const newLane = () => ({ cols: [{ front: 0, units: [] }, { front: 0, units: [] }], towers: [] });
 export const towerAt = (lane, slot) => lane.towers.find(t => t.slot === slot);
 
-// Forward-most slot a team holds in a lane: its lead squad or guard tower, else its home slot.
+// Fills rows front to back in the order the units were sent. A row is ROW spaces of one
+// class: warriors and giants share a row, archers keep to their own.
+function pack(units) {
+  const rows = [];
+  for (const u of units) {
+    const cls = u.kind === 'archer' ? 'archer' : 'melee', size = UNITS[u.kind].size;
+    let row = rows[rows.length - 1];
+    if (!row || row.cls !== cls || row.used + size > ROW) rows.push(row = { cls, used: 0, units: [] });
+    row.units.push(u);
+    row.used += size;
+  }
+  return rows;
+}
+
+// A team's column as rows, front row first: { cls, used, units, slot }. Worked out afresh
+// from the units each time, so the column closes up by itself as units fall.
+export function rowsOf(lane, team) {
+  const col = lane.cols[team], dir = dirOf(team);
+  return pack(col.units).map((row, i) => ({ ...row, slot: col.front - dir * i }));
+}
+
+// Where each unit of a row stands across the road, in spaces from the middle of it:
+// giants in the centre, everyone else shared out to either side of them.
+export function rowSpots(row) {
+  const giants = row.units.filter(u => u.kind === 'giant'), rest = row.units.filter(u => u.kind !== 'giant');
+  const half = Math.floor(rest.length / 2), spots = new Map();
+  let x = -row.used / 2;
+  for (const u of [...rest.slice(0, half), ...giants, ...rest.slice(half)]) {
+    const w = UNITS[u.kind].size;
+    spots.set(u, x + w / 2);
+    x += w;
+  }
+  return spots;
+}
+
+// How far a row of that class can hit, in slots.
+const reachOf = cls => (cls === 'archer' ? UNITS.archer.range : UNITS.melee.range);
+
+// Forward-most slot a team holds in a lane: its front row or guard tower, else its home slot.
 export function frontier(lane, team) {
-  let f = homeSlot(team);
-  for (const list of [lane.squads, lane.towers]) {
-    for (const e of list) {
-      if (e.team === team) f = team === BLUE ? Math.max(f, e.slot) : Math.min(f, e.slot);
-    }
+  const col = lane.cols[team];
+  let f = col.units.length ? col.front : homeSlot(team);
+  for (const t of lane.towers) {
+    if (t.team === team) f = team === BLUE ? Math.max(f, t.slot) : Math.min(f, t.slot);
   }
   return f;
 }
@@ -36,25 +78,6 @@ export function checkpointsHeld(lanes, team) {
   return n;
 }
 
-// Slot of the forward-most checkpoint a team holds, or its home slot if it holds none.
-export function deployLimit(lane, team) {
-  const f = frontier(lane, team);
-  let lim = homeSlot(team);
-  for (const c of CHECKPOINTS) {
-    if (team === BLUE ? c <= f && c > lim : c >= f && c < lim) lim = c;
-  }
-  return lim;
-}
-
-// Free slots a team may drop a squad on: anywhere from its gate to its forward-most checkpoint.
-export function deploySlots(m, team, li) {
-  const lane = m.lanes[li], lim = deployLimit(lane, team), dir = dirOf(team), out = [];
-  for (let s = homeSlot(team); team === BLUE ? s <= lim : s >= lim; s += dir) {
-    if (!squadAt(lane, s)) out.push(s);
-  }
-  return out;
-}
-
 // Held checkpoints without a guard tower yet.
 export function towerSpots(m, team) {
   const out = [];
@@ -66,143 +89,152 @@ export function towerSpots(m, team) {
   return out;
 }
 
-// First enemy thing within `range` slots ahead of `slot`. The enemy's home slot doubles
-// as the castle gate: if nobody is standing on it, the castle itself is the target.
-export function laneTarget(lane, team, slot, range) {
-  const dir = dirOf(team), gate = homeSlot(1 - team);
-  for (let k = 1; k <= range; k++) {
-    const s = slot + dir * k;
-    if (s < 0 || s > LANE_LEN) break;
-    const sq = squadAt(lane, s);
-    if (sq && sq.team !== team) return { type: 'squad', ref: sq };
-    const tw = towerAt(lane, s);
-    if (tw && tw.team !== team) return { type: 'tower', ref: tw };
-    if (s === gate) return { type: 'castle' };
+// The nearest enemy thing ahead of `slot`, as { type, dist, ref }: the enemy's front row,
+// a guard tower, or the castle behind the enemy's home slot. A row shields whatever it
+// is standing on.
+function aheadOf(lane, team, slot) {
+  const dir = dirOf(team), foe = lane.cols[1 - team];
+  let best = { type: 'castle', dist: dir * (homeSlot(1 - team) - slot) };
+  for (const t of lane.towers) {
+    const d = dir * (t.slot - slot);
+    if (t.team !== team && d > 0 && d < best.dist) best = { type: 'tower', dist: d, ref: t };
   }
-  return null;
+  if (foe.units.length) {
+    const d = dir * (foe.front - slot);
+    if (d > 0 && d <= best.dist) best = { type: 'row', dist: d };
+  }
+  return best;
 }
 
-// Marching order in a column: giants lead, warriors follow, archers bring up the rear.
-const RANK = { archer: 0, melee: 1, giant: 2 };
+// How far a column fronted on `front` can walk, up to `max` slots. It cannot pass the
+// enemy's column, a guard tower or the enemy gate, and with `reach` it halts as soon as
+// one of them is that close.
+function room(lane, team, front, max, reach = 1) {
+  return Math.max(0, Math.min(max, aheadOf(lane, team, front).dist - reach));
+}
 
-// Moves a squad one step: up to `speed` slots forward, stopping the moment an enemy comes
-// into range. A squad that outranks the friend ahead of it swaps places with them, so
-// giants and warriors work their way to the front and push the others back a slot each.
-// That costs a slot of movement like any other; nobody gets extra steps for it.
-// Mutates the lane and returns the friendly squads that were pushed back.
-export function advance(lane, s) {
-  const dir = dirOf(s.team), gate = homeSlot(1 - s.team), pushed = [];
-  for (let used = 0; used < s.speed; used++) {
-    if (laneTarget(lane, s.team, s.slot, s.range)) break;
-    const next = s.slot + dir;
-    if (next === gate) break;
-    const tw = towerAt(lane, next);
-    if (tw && tw.team !== s.team) break;
-    const other = squadAt(lane, next);
-    if (other) {
-      if (other.team !== s.team || RANK[other.kind] >= RANK[s.kind]) break;
-      other.slot = s.slot;
-      if (!pushed.includes(other)) pushed.push(other);
+// ------------------------------------------------------------------ placing troops
+
+// Where a team's first row forms up in an empty lane: on the forward-most checkpoint it
+// holds (through a guard tower), failing that the first checkpoint out of its gate, or
+// as near to that as the enemy allows.
+function musterSlot(lane, team) {
+  const home = homeSlot(team), dir = dirOf(team), f = frontier(lane, team);
+  let goal = team === BLUE ? CHECKPOINTS[0] : CHECKPOINTS[CHECKPOINTS.length - 1];
+  for (const c of CHECKPOINTS) if (dir * (c - goal) > 0 && dir * (f - c) >= 0) goal = c;
+  return home + dir * room(lane, team, home, dir * (goal - home));
+}
+
+// Where a team's column would stand with a `kind` card's units added to the back of it:
+// { front, slot } with `slot` the row the newcomers end up in, or null if there is no
+// room for them. New units never move the front line unless the column already reaches
+// back to the home slot; then the whole column is pushed forward to make room, which
+// the enemy can block.
+export function placement(lane, team, kind) {
+  const col = lane.cols[team], dir = dirOf(team), home = homeSlot(team);
+  const fresh = Array.from({ length: UNITS[kind].count }, () => ({ kind }));
+  const rows = pack([...col.units, ...fresh]).length;
+  let front = col.units.length ? col.front : musterSlot(lane, team);
+  const push = rows - (dir * (front - home) + 1);
+  if (push > 0) {
+    if (room(lane, team, front, push) < push) return null;
+    front += dir * push;
+  }
+  return { front, slot: front - dir * (rows - 1) };
+}
+
+// Plays a troop card: adds its units to the back of the team's column. make(kind) builds
+// one unit. Returns the new units, or null if the lane has no room for them.
+export function placeUnits(lane, team, kind, make) {
+  const spot = placement(lane, team, kind);
+  if (!spot) return null;
+  const col = lane.cols[team], fresh = [];
+  for (let i = 0; i < UNITS[kind].count; i++) fresh.push(make(kind));
+  col.front = spot.front;
+  col.units.push(...fresh);
+  return fresh;
+}
+
+// A bare unit, with nothing but what the rules need.
+export const newUnit = (id, team, kind) => ({ id, team, kind, hp: UNITS[kind].hp, maxHp: UNITS[kind].hp });
+
+// ------------------------------------------------------------------ fighting
+
+// Lands a volley of blows on the enemy's front row as it stands. Each blow goes to the
+// first unit in line that the blows before it have not already finished, so none is
+// wasted on a dead man, but a volley never reaches past the front row: blows left over
+// once it has fallen are lost. The dead are removed and the column closes up.
+// blows: [{ by, dmg }] with dmg a table by unit kind. Returns the hits that landed.
+function hitRow(lane, foe, blows) {
+  const col = lane.cols[foe], row = pack(col.units)[0], hits = [];
+  for (const b of blows) {
+    const u = row.units.find(q => q.hp > 0);
+    if (!u) break;
+    u.hp -= b.dmg[u.kind];
+    hits.push({ by: b.by, kind: 'unit', target: u.id, dmg: b.dmg[u.kind] });
+  }
+  col.units = col.units.filter(u => u.hp > 0);
+  return hits;
+}
+
+// One row's blows against the nearest enemy thing within its reach.
+function strike(lane, team, row) {
+  const tgt = aheadOf(lane, team, row.slot), hits = [];
+  if (tgt.dist > reachOf(row.cls)) return hits;
+  const blows = row.units.map(u => ({ by: u.id, dmg: UNITS[u.kind].dmg }));
+  if (tgt.type === 'row') return hitRow(lane, 1 - team, blows);
+  for (const b of blows) {
+    if (tgt.type === 'castle') hits.push({ by: b.by, kind: 'castle', dmg: b.dmg.castle });
+    else if (tgt.ref.hp > 0) {
+      tgt.ref.hp -= b.dmg.tower;
+      hits.push({ by: b.by, kind: 'tower', target: tgt.ref.id, dmg: b.dmg.tower });
     }
-    s.slot = next;
   }
-  return pushed;
+  lane.towers = lane.towers.filter(t => t.hp > 0);
+  return hits;
 }
 
-// The blow a squad would land from where it stands, as an 'attack' action, or null if
-// nothing is in range. How hard it lands depends on who is hitting whom.
-export function strikeAct(lane, sq) {
-  const tgt = laneTarget(lane, sq.team, sq.slot, sq.range);
-  if (!tgt) return null;
-  const table = UNITS[sq.kind].dmg;
-  if (tgt.type === 'castle') return { type: 'attack', by: sq.id, to: sq.slot, kind: 'castle', dmg: table.castle };
-  const dmg = tgt.type === 'tower' ? table.tower : table[tgt.ref.kind];
-  return { type: 'attack', by: sq.id, to: sq.slot, kind: tgt.type, target: tgt.ref.id, slot: tgt.ref.slot, dmg };
+// A team's defences on `lane`, fired once its side has hunted: the castle's arrows, then
+// one from each guard tower, at the enemy's front row if it has come close enough.
+// Mutates the lane and returns what happened, in order:
+//   { type: 'guard', hits }      the castle shoots
+//   { type: 'tower', by, hits }  a guard tower shoots
+// with hits as [{ kind: 'unit', target, dmg }].
+export function laneGuard(lane, team) {
+  const acts = [], foe = lane.cols[1 - team];
+  const near = (slot, range) => foe.units.length && Math.abs(foe.front - slot) <= range;
+  if (near(homeSlot(team), CASTLE.guardSlots)) {
+    const blows = Array.from({ length: CASTLE.arrows }, () => ({ dmg: CASTLE.arrow }));
+    acts.push({ type: 'guard', hits: hitRow(lane, 1 - team, blows) });
+  }
+  for (const tw of lane.towers) {
+    if (tw.team !== team || !near(tw.slot, UNITS.tower.range)) continue;
+    acts.push({ type: 'tower', by: tw.id, hits: hitRow(lane, 1 - team, [{ dmg: UNITS.tower.dmg }]) });
+  }
+  return acts;
 }
 
-// Applies an 'attack' action's damage to the lane it was worked out on.
-function land(lane, act) {
-  if (act.kind === 'castle') return;
-  const list = act.kind === 'squad' ? lane.squads : lane.towers;
-  const e = list.find(o => o.id === act.target);
-  if (!e) return;
-  e.hp -= act.dmg;
-  if (e.hp <= 0) list.splice(list.indexOf(e), 1);
-}
-
-// A squad that has just been dropped on the lane takes its free step and, if that brings
-// something into range, strikes it. Mutates the lane; returns the blow, if any.
-export function dropStep(lane, sq) {
-  advance(lane, sq);
-  const act = strikeAct(lane, sq);
-  if (act) land(lane, act);
-  return act;
-}
-
-// Plays out one team's whole step on `lane`, mutating it, and returns what happened in
-// order. The game runs this on a copy and replays the result with animation; the AI runs
-// it on copies to look ahead. Entities are referred to by id so a plan can be replayed.
-//   { type: 'guard', target, dmg }                      castle guards shoot a squad
-//   { type: 'tower', by, target, dmg }                  guard tower shoots a squad
-//   { type: 'move', by, to }                            squad walks
-//   { type: 'attack', by, to, kind, target, slot, dmg } squad walks to `to` (if it is not
-//                                                       there already), then strikes;
-//                                                       kind is 'squad', 'tower' or 'castle'
-export function laneStep(lane, team) {
-  const acts = [], enemy = 1 - team, dir = dirOf(team);
-  const hurt = (list, e, dmg) => {
-    e.hp -= dmg;
-    if (e.hp <= 0) list.splice(list.indexOf(e), 1);
-  };
-  const nearest = (slot, range) => {
-    let best = null;
-    for (const q of lane.squads) {
-      const d = Math.abs(q.slot - slot);
-      if (q.team === enemy && d <= range && (!best || d < Math.abs(best.slot - slot))) best = q;
-    }
-    return best;
-  };
-
-  const raider = nearest(homeSlot(team), CASTLE.guardSlots);
-  if (raider) {
-    const dmg = CASTLE.guard[raider.kind];
-    acts.push({ type: 'guard', target: raider.id, dmg });
-    hurt(lane.squads, raider, dmg);
-  }
-
-  for (const tw of lane.towers.filter(t => t.team === team)) {
-    const foe = nearest(tw.slot, tw.range);
-    if (!foe) continue;
-    const dmg = UNITS.tower.dmg[foe.kind];
-    acts.push({ type: 'tower', by: tw.id, target: foe.id, dmg });
-    hurt(lane.squads, foe, dmg);
-  }
-
-  const front = (p, q) => dir * (q.slot - p.slot);
-  const squads = lane.squads.filter(q => q.team === team);
-
-  // First every squad with something in reach strikes where it stands, front to back.
-  for (const sq of squads.slice().sort(front)) {
-    const act = strikeAct(lane, sq);
-    if (!act) continue;
-    acts.push(act);
-    land(lane, act);
-  }
-
-  // Then the column moves. Giants go first, then warriors, then archers, so each rank
-  // swaps its way past the ones that belong behind it and the rest close up after.
-  // A squad whose step ends with an enemy in reach strikes again.
-  for (const sq of squads.slice().sort((p, q) => RANK[q.kind] - RANK[p.kind] || front(p, q))) {
-    if (!lane.squads.includes(sq)) continue;
-    const from = sq.slot;
-    for (const o of advance(lane, sq)) acts.push({ type: 'move', by: o.id, to: o.slot });
-    if (sq.slot === from) continue;
-    const act = strikeAct(lane, sq);
-    if (act) {
-      acts.push(act);
-      land(lane, act);
-    } else {
-      acts.push({ type: 'move', by: sq.id, to: sq.slot });
+// A team's troops on `lane` at the end of its turn. The front row strikes whatever it
+// can reach, then each row of archers behind it that is in range shoots as well. After
+// that the column marches: up to MARCH slots, halting when its front row has something
+// to hit. Mutates the lane and returns what happened, in order. The game runs this on a
+// copy and replays the result with animation; the AI runs it on copies to look ahead.
+// Units and towers are referred to by id so a plan can be replayed.
+//   { type: 'volley', hits }  one row strikes; hits as [{ by, kind, target, dmg }] with
+//                             kind 'unit', 'tower' or 'castle'
+//   { type: 'move', to }      the column's front row walks to slot `to`
+export function laneFight(lane, team) {
+  const acts = [], col = lane.cols[team], rows = rowsOf(lane, team);
+  rows.forEach((row, i) => {
+    if (i && row.cls !== 'archer') return;
+    const hits = strike(lane, team, row);
+    if (hits.length) acts.push({ type: 'volley', hits });
+  });
+  if (rows.length) {
+    const step = room(lane, team, col.front, MARCH, reachOf(rows[0].cls));
+    if (step) {
+      col.front += dirOf(team) * step;
+      acts.push({ type: 'move', to: col.front });
     }
   }
   return acts;

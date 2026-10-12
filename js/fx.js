@@ -30,8 +30,9 @@ export class Fx {
     }
   }
 
-  shot(x0, y0, x1, y1, { dur = 0.2, arc = 14, color = '#6b4423' } = {}) {
-    this.shots.push({ x0, y0, x1, y1, dur, arc, color, t: 0 });
+  // An arrow lobbed from one point to another, fletched in its team's colour.
+  shot(x0, y0, x1, y1, { dur = 0.2, arc = 14, team = 0 } = {}) {
+    this.shots.push({ x0, y0, x1, y1, dur, arc, team, t: 0 });
   }
 
   ring(x, y, color, r0 = 10, r1 = 40, life = 0.45) {

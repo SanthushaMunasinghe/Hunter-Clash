@@ -1,7 +1,8 @@
 import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, UPGRADE } from './config.js';
 import * as S from './sprites.js';
-import { cpOwner, homeSlot, towerAt } from './rules.js';
+import { cpOwner, homeSlot } from './rules.js';
 import { previewPaths, volleyShots } from './arrow.js';
+import { dragAngle } from './input.js';
 import { seeded, rand, lerp, clamp, easeOut, TAU } from './utils.js';
 
 const NOCK = 14;
@@ -281,14 +282,14 @@ export class Renderer {
         const p = b.lanePoint(li, tw.slot);
         add(p.y, () => S.drawTower(ctx, p.x, p.y, tw.team, tw.hp / tw.maxHp, tw.flash, tw.born, t));
       }
-      for (const sq of lane.squads) {
-        const p = b.lanePoint(li, sq.vis), d = b.laneDir(li, sq.vis);
-        // Step aside when sharing a checkpoint with a friendly tower.
-        if (towerAt(lane, sq.slot)) p.x -= outward * 17;
-        const k = sq.lunge > 0 ? Math.sin((1 - sq.lunge / 0.22) * Math.PI) * 10 : 0;
-        const count = Math.max(1, Math.ceil((sq.hp / sq.maxHp) * 3));
-        add(p.y + 4, () => S.drawSquad(ctx, p.x + sq.lx * k, p.y + sq.ly * k, -d.y, d.x,
-          sq.team, sq.kind, count, sq.hp / sq.maxHp, sq.flash, t, sq.walking, unitScale));
+      for (const col of lane.cols) {
+        for (const u of col.units) {
+          const p = b.rowPoint(li, u.vis, u.lat);
+          const k = u.lunge > 0 ? Math.sin((1 - u.lunge / 0.22) * Math.PI) * 9 : 0;
+          // Only the wounded carry a health bar, so a full row stays readable.
+          add(p.y + 4, () => S.drawUnit(ctx, p.x + u.lx * k, p.y + u.ly * k, u.team, u.kind,
+            u.hp < u.maxHp ? u.hp / u.maxHp : null, u.flash, t, u.walking, unitScale, u.id));
+        }
       }
     });
     for (const a of m.animals) add(a.y + a.r * 0.6, () => S.drawAnimal(ctx, a, t));
@@ -339,21 +340,21 @@ export class Renderer {
     return { dmg, mult, size, w, x: L.x, y: L.y - 50 };
   }
 
-  // The looping hand demo shown on the first turn of a Noob match: press below the
-  // castle, pull back, let go.
+  // The looping hand demo shown on the first turn of a Noob match: press in the strip
+  // below the castle, slide to one side and back across to the other, let go.
   tutorialPose(m, t) {
-    const b = m.board, u = (t % 2.8) / 2.8;
-    const from = { x: b.cx - 16, y: b.B + 58 }, to = { x: b.cx + 24, y: b.B + 122 };
-    const k = easeOut(clamp((u - 0.22) / 0.36, 0, 1));
-    const x = lerp(from.x, to.x, k), y = lerp(from.y, to.y, k);
-    const pose = { x, y, pressed: u > 0.14 && u < 0.84, alpha: clamp(u / 0.1, 0, 1) * clamp((1 - u) / 0.1, 0, 1), aim: null };
-    const dx = x - from.x, dy = y - from.y, len = Math.hypot(dx, dy);
-    if (pose.pressed && len > 14) pose.aim = { angle: Math.atan2(-dy, -dx), pull: Math.min(len * 1.2, 90) };
-    return pose;
+    const b = m.board, u = (t % 3.4) / 3.4, x0 = b.cx + 26, y = b.B + 96;
+    const dx = u < 0.2 ? 0 : u < 0.5 ? -90 * easeOut((u - 0.2) / 0.3) : lerp(-90, 70, easeOut(clamp((u - 0.5) / 0.3, 0, 1)));
+    const pressed = u > 0.12 && u < 0.86;
+    return {
+      x: x0 + dx, y, pressed, alpha: clamp(u / 0.1, 0, 1) * clamp((1 - u) / 0.1, 0, 1),
+      aim: pressed ? { angle: dragAngle(dx), pull: 60 } : null,
+    };
   }
 
+  // The prompt in the strip behind the castle, the only place an aim can start.
   drawAimPopup(ctx, x, y, t) {
-    const bob = Math.sin(t * 4) * 2.5, w = 140, h = 30;
+    const bob = Math.sin(t * 4) * 2.5, w = 196, h = 30, slide = Math.sin(t * 4) * 3;
     ctx.save();
     ctx.translate(x, y + bob);
     ctx.fillStyle = 'rgba(31,36,51,0.92)';
@@ -366,6 +367,11 @@ export class Renderer {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffcf3f';
     ctx.fillText('DRAG TO AIM', 0, 1);
+    for (const side of [-1, 1]) {
+      const ax = side * (w / 2 - 20 + slide);
+      S.poly(ctx, [ax + side * 7, 0, ax - side * 4, -7, ax - side * 4, 7]);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -460,7 +466,7 @@ export class Renderer {
       const k = s.t / s.dur;
       const at = u => ({ x: lerp(s.x0, s.x1, u), y: lerp(s.y0, s.y1, u) - Math.sin(u * Math.PI) * s.arc });
       const p = at(k), q = at(Math.min(1, k + 0.02));
-      S.drawArrow(ctx, p.x, p.y, Math.atan2(q.y - p.y, q.x - p.x), BLUE, 0.6);
+      S.drawArrow(ctx, p.x, p.y, Math.atan2(q.y - p.y, q.x - p.x), s.team, 0.6);
     }
     for (const tx of fx.texts) {
       const k = tx.t / tx.life, y = tx.y - easeOut(k) * 26;
@@ -480,7 +486,7 @@ export class Renderer {
   // Where the card being dragged is allowed to land.
   drawDropZones(ctx, m, d, t) {
     const b = m.board, pulse = 0.5 + 0.5 * Math.sin(t * 6), zone = CARDS[d.id].zone;
-    const on = o => d.target && d.target.valid && d.target.lane === o.lane && d.target.slot === o.slot;
+    const on = o => d.onBoard && d.target && d.target.valid && d.target.lane === o.lane && d.target.slot === o.slot;
 
     if (zone === 'base') {
       const p = d.options.base, hit = d.target && d.target.valid;
@@ -497,32 +503,30 @@ export class Renderer {
     }
 
     if (zone === 'lane') {
-      // One glowing strip per lane over the stretch you hold, a dot on every free slot.
-      for (const li of [0, 1]) {
-        const slots = d.options.spots.filter(o => o.lane === li).map(o => o.slot);
-        if (!slots.length) continue;
-        const lo = Math.min(...slots), hi = Math.max(...slots);
+      // Each road the card can go down glows from the home platform to where its units
+      // will fall in; the one the finger is over glows brighter.
+      for (const o of d.options.lanes) {
+        if (!o) continue;
+        const lit = on(o), lo = Math.min(o.from, o.slot), hi = Math.max(o.from, o.slot);
         ctx.beginPath();
         for (let s = lo - 0.4; s <= hi + 0.4; s += 0.2) {
-          const p = b.lanePoint(li, s);
+          const p = b.lanePoint(o.lane, s);
           ctx.lineTo(p.x, p.y);
         }
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.strokeStyle = `rgba(70,170,255,${0.42 + pulse * 0.18})`;
+        ctx.strokeStyle = lit ? 'rgba(70,170,255,0.8)' : `rgba(70,170,255,${0.3 + pulse * 0.15})`;
         ctx.lineWidth = ROAD.width - 12;
         ctx.stroke();
         ctx.lineCap = 'butt';
-      }
-      for (const o of d.options.spots) {
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
-        S.circle(ctx, o.x, o.y, on(o) ? 0 : 3.5);
-        ctx.fill();
-        if (!on(o)) continue;
+        const h = b.lanePoint(o.lane, o.from);
+        ctx.setLineDash(lit ? [] : [6, 5]);
+        ctx.lineDashOffset = -t * 20;
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
-        S.ellipse(ctx, o.x, o.y, 23, 18);
+        ctx.lineWidth = lit ? 3.5 : 2.5;
+        S.ellipse(ctx, h.x, h.y, 26, 19);
         ctx.stroke();
+        ctx.setLineDash([]);
       }
       return;
     }

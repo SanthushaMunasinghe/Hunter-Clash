@@ -1,4 +1,4 @@
-import { W, HUD_H, PANEL_H, FIELD, ROAD, LANE_LEN, HOME_INSET, BLUE, RED } from './config.js';
+import { W, HUD_H, PANEL_H, FIELD, ROAD, LANE_LEN, HOME_INSET, ROW, BLUE, RED } from './config.js';
 import { lerp, clamp } from './utils.js';
 
 const sp = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), e);
@@ -74,6 +74,14 @@ export function makeBoard(H) {
 
   const slotPx = (lanes[0].len - 2 * HOME_INSET) / LANE_LEN;
 
+  // Where a unit stands: slot s along the lane and `lat` spaces across the road from
+  // the middle of it. A full row just fits the width of the road.
+  const spacePx = (ROAD.width - 12) / (ROW - 1);
+  function rowPoint(li, s, lat) {
+    const p = lanePoint(li, s), d = laneDir(li, s);
+    return { x: p.x - d.y * lat * spacePx, y: p.y + d.x * lat * spacePx };
+  }
+
   // x/y is the centre of the castle's collision capsule, drawY the sprite anchor,
   // launch the point arrows are fired from.
   const castles = [];
@@ -82,7 +90,7 @@ export function makeBoard(H) {
 
   return {
     H, T, B, cx, cy, a, b, n, FT, FB,
-    edge, ring, fieldG, fieldN, lanePoint, laneDir, slotPx, castles,
+    edge, ring, fieldG, fieldN, lanePoint, laneDir, rowPoint, slotPx, castles,
     fieldPts: ring(0),
     roadPts: ring(ROAD.offset),
   };

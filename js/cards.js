@@ -1,8 +1,8 @@
 import { CARDS, CARD_ORDER, HAND_SIZE, DEAL, START_MEAT, UNITS, ARROW, UPGRADE } from './config.js';
 import { dist, clamp, lerp } from './utils.js';
-import { deploySlots, towerSpots, dirOf } from './rules.js';
+import { towerSpots, dirOf, homeSlot, placement, placeUnits, newUnit } from './rules.js';
 
-const SNAP = 64;       // how close a lane card must be dropped to a slot to snap onto it
+const SNAP = 64;       // how close a tower must be dropped to a checkpoint to snap onto it
 const BASE_SNAP = 95;  // how close an upgrade must be dropped to your own castle
 
 // arrows: how many are loosed each hunt. damage: what each does to an animal.
@@ -66,12 +66,10 @@ export function cardCost(T, id) {
 export function cardBlocker(m, team, id) {
   const zone = CARDS[id].zone;
   if (m.teams[team].meat < cardCost(m.teams[team], id)) return 'meat';
-  if (zone === 'lane' && !deploySlots(m, team, 0).length && !deploySlots(m, team, 1).length) return 'spot';
+  if (zone === 'lane' && !m.lanes.some(lane => placement(lane, team, id))) return 'spot';
   if (zone === 'checkpoint' && !towerSpots(m, team).length) return 'spot';
   return null;
 }
-
-export const canPlayAny = (m, team) => m.teams[team].hand.some(id => id && !cardBlocker(m, team, id));
 
 // The point on a team's castle that upgrade cards are dropped onto.
 export function basePoint(m, team) {
@@ -79,20 +77,33 @@ export function basePoint(m, team) {
   return { x: c.x, y: c.drawY - 28 };
 }
 
-// Where a card may go, for highlighting while it is being dragged.
+// Where a card may go, for highlighting while it is being dragged. A troop card only
+// picks a road: its units step out of the home platform and walk up to the back of the
+// column, so each road is given as the stretch from that platform to where they end up.
 export function dropOptions(m, team, id) {
   const zone = CARDS[id].zone;
   if (zone === 'base') return { base: basePoint(m, team) };
-  const spots = zone === 'lane'
-    ? [0, 1].flatMap(li => deploySlots(m, team, li).map(slot => ({ lane: li, slot })))
-    : towerSpots(m, team);
-  return { spots: spots.map(s => ({ ...s, ...m.board.lanePoint(s.lane, s.slot) })) };
+  if (zone === 'lane') {
+    return {
+      lanes: m.lanes.map((lane, li) => {
+        const spot = placement(lane, team, id);
+        return spot && { lane: li, from: homeSlot(team), slot: spot.slot, ...m.board.lanePoint(li, spot.slot) };
+      }),
+    };
+  }
+  return { spots: towerSpots(m, team).map(s => ({ ...s, ...m.board.lanePoint(s.lane, s.slot) })) };
 }
 
-// Resolves a drop at (x, y) to a concrete target for playCard.
+// Resolves a drop at (x, y) to a concrete target for playCard. Troops go to whichever
+// road is on that side of the board.
 export function dropTarget(m, team, id, x, y, options) {
-  if (CARDS[id].zone === 'base') {
+  const zone = CARDS[id].zone;
+  if (zone === 'base') {
     return { valid: dist(x, y, options.base.x, options.base.y) < BASE_SNAP, ...options.base };
+  }
+  if (zone === 'lane') {
+    const li = x < m.board.cx ? 0 : 1, spot = options.lanes[li];
+    return spot ? { valid: true, ...spot } : { valid: false, lane: li, x, y };
   }
   let best = null, bd = SNAP;
   for (const s of options.spots) {
@@ -103,7 +114,8 @@ export function dropTarget(m, team, id, x, y, options) {
 }
 
 // Pays for hand[idx] and applies it, then refills the slot with a new card.
-// Returns the new squad or tower, { upgrade: id } for an upgrade, or null if illegal.
+// Returns { units, lane } for troops, the new tower, { upgrade: id } for an upgrade, or
+// null if illegal.
 export function playCard(m, team, idx, target) {
   const T = m.teams[team], id = T.hand[idx], card = CARDS[id];
   if (!card) return null;
@@ -111,14 +123,14 @@ export function playCard(m, team, idx, target) {
   if (T.meat < cost) return null;
   let ent;
   if (card.zone === 'lane') {
-    if (!deploySlots(m, team, target.lane).includes(target.slot)) return null;
-    const u = UNITS[id];
-    ent = {
-      id: m.nextId++, team, kind: id, lane: target.lane, slot: target.slot,
-      hp: u.hp, maxHp: u.hp, range: u.range, speed: u.speed,
-      vis: target.slot - dirOf(team) * 0.8, walking: false, lunge: 0, lx: 0, ly: 0, flash: 0,
-    };
-    m.lanes[target.lane].squads.push(ent);
+    // New units appear on the home platform and walk up to their place in the column.
+    const home = homeSlot(team) - dirOf(team) * 0.6;
+    const units = placeUnits(m.lanes[target.lane], team, id, kind => ({
+      ...newUnit(m.nextId++, team, kind),
+      vis: home, lat: 0, walking: false, lunge: 0, lx: 0, ly: 0, flash: 0,
+    }));
+    if (!units) return null;
+    ent = { units, lane: target.lane };
   } else if (card.zone === 'checkpoint') {
     if (!towerSpots(m, team).some(s => s.lane === target.lane && s.slot === target.slot)) return null;
     const u = UNITS.tower;

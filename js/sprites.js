@@ -711,8 +711,25 @@ function giant(ctx, team, bob) {
   ctx.restore();
 }
 
-// A rank of up to three soldiers standing across the road, or one giant; (nx, ny) is the
-// unit vector across the lane. Pass hpFrac = null to leave the health bar off.
+// One unit on the road. hpFrac: pass null to leave the health bar off. step: any number
+// that differs between neighbours, so a row does not march in unison.
+export function drawUnit(ctx, x, y, team, kind, hpFrac, flash, t, walking, scale = 1, step = 0) {
+  const big = kind === 'giant';
+  shadow(ctx, x, y + (big ? 13 : 9) * scale, (big ? 16 : 7.5) * scale, (big ? 6 : 3.5) * scale, 0.2);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  if (big) giant(ctx, team, walking ? Math.abs(Math.sin(t * 8)) * 2.5 : 0);
+  else soldier(ctx, 0, 0, team, kind, walking ? Math.abs(Math.sin(t * 12 + step * 1.7)) * 2.2 : 0);
+  ctx.restore();
+  if (big) hitFlash(ctx, x, y - 6 * scale, 18 * scale, 22 * scale, flash);
+  else hitFlash(ctx, x, y - 2 * scale, 8 * scale, 12 * scale, flash);
+  if (hpFrac !== null) hpBar(ctx, x, y + (big ? 17 : 11) * scale, big ? 22 : 9, hpFrac, team);
+}
+
+// A card's worth of troops side by side, for card art and the drag preview: three
+// soldiers standing across the road, or one giant; (nx, ny) is the unit vector across
+// the lane. Pass hpFrac = null to leave the health bar off.
 export function drawSquad(ctx, x, y, nx, ny, team, kind, count, hpFrac, flash, t, walking, scale = 1) {
   if (kind === 'giant') {
     shadow(ctx, x, y + 13 * scale, 16 * scale, 6 * scale, 0.22);

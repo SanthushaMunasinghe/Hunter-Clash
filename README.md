@@ -2,13 +2,15 @@
 
 A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (you) vs Red (computer).
 
-Each turn has two states:
+Each turn runs in four steps:
 
-1. **Hunt** – the card panel slides away; drag in the strip under your castle to pull back, then release. Every arrow you own is loosed at once, side by side along that line and fanning out very slightly. An arrow bounces off the field edge (up to 5 times) and is spent on the first animal it hits. When the volley lands, each of your squads strikes whatever is in reach, steps forward if the way is clear, and strikes again where it stops.
-2. **Spend** – each turn deals you four different cards out of six. Playing one draws a new card into its place straight away, so you can keep spending while the meat lasts. Drag one onto the board:
-   - **Warriors**, **Archers**, **Giant** – onto either road.
+1. **Hunt** – the card panel slides away. Press in the strip below your castle and slide left or right: the shot starts out aimed straight up the field and swings the opposite way to your finger. Let go to shoot. Every arrow you own is loosed at once, side by side along that line and fanning out very slightly. An arrow bounces off the field edge (up to 5 times) and is spent on the first animal it hits.
+2. **Castle defends** – your castle fires 5 arrows down each road at the enemy's front row, if it is within 3 slots of your gate, and each of your guard towers shoots one. A castle arrow kills a warrior or an archer outright.
+3. **Spend** – each turn deals you four different cards out of six. Playing one draws a new card into its place straight away, so you can keep spending while the meat lasts. Drag one onto the board:
+   - **Warriors**, **Archers**, **Giant** – onto the left or right side of the board, to send them down that road.
    - **Tower** – onto a checkpoint you hold.
    - **+1 Arrow**, **+Damage** – onto your own castle.
+4. **End turn** – nothing on the roads fights until you press END TURN. Then, on each road, your front row strikes whatever it can reach, the rows of archers behind it shoot if they are in range, and the column marches.
 
 The deal is random but weighted. Early on it is mostly Warriors, Archers and the two upgrades. Giants and Towers become common from about turn 6, and an upgrade turns up less the more of it you own (+1 Arrow is rare once you have three). Any card can still appear on any turn, and a hand always has Warriors or Archers in it. The odds are the `DEAL` table in `js/config.js`.
 
@@ -27,22 +29,34 @@ The number over an animal is its health and its meat in one. An arrow takes its 
 
 ## Troops
 
+A troop card sends single units: three warriors, three archers or one giant. They step out of the home platform by your gate and walk up to the back of your column on that road, so troops stack in the order you send them.
+
 | | What it is for | Weakness |
 |---|---|---|
-| **Warriors** | The all-round fighter: 36 health, fells warriors or giants in two blows | None in particular |
-| **Archers** | Hit 2 slots ahead, so they add damage from behind a front-liner | Die to a single blow from any squad |
-| **Giant** | Breaking guard towers: 2 blows | Slower and dearer than warriors, and no better in a fight |
-| **Tower** | Blocks the road. Warriors and archers together need 6 blows to break it | Giants |
+| **Warriors** | The all-round fighter: 12 health, and two blows fell another warrior | None in particular |
+| **Archers** | Hit 3 slots ahead, so they fight from the rows behind the front | Die to any blow |
+| **Giant** | The health and punch of three warriors in two spaces; breaks a guard tower in 2 blows | Lands it all on one target, so it clears a row slowly |
+| **Tower** | Blocks the road and shoots one arrow a turn at the enemy's front row | Giants |
 
-Nothing hits further than 2 slots, towers and castle guards included, so only the front of a column fights. Archers stop as soon as an enemy is in range. A column sorts itself as it marches: giants lead, warriors follow, archers bring up the rear. A giant or warrior moving up swaps places with any lower-ranked friend in its way, pushing them back a slot; that uses up its normal step, it gets no extra movement for it. A squad strikes whenever a step ends with an enemy in reach, including the free step it takes when you place it.
+**Rows.** A column stands in rows, one slot apart. A row is 5 spaces of one class: warriors (1 space) and giants (2 spaces, always in the middle) share rows, archers keep to rows of their own. Rows are filled front to back in the order the units were sent, and the column closes up on its front line whenever units fall.
+
+**Placing.** The first row on an empty road forms up on your nearest checkpoint (or on the furthest one a guard tower of yours holds). After that, new units never move the front line; they fall in behind. Only when the column already reaches back to your gate are new units allowed to push it forward a slot, and the enemy can block that: with the enemy in the way and no room behind, the road is full.
+
+**Fighting** happens only when a side ends its turn:
+
+1. The front row strikes the nearest enemy thing in its reach: the enemy's front row, a guard tower, or the castle behind the enemy gate.
+2. Each row of archers behind it that is in range shoots as well.
+3. The column marches up to 5 slots, the distance from one checkpoint to the next, halting as soon as its front row has something to hit.
+
+A volley is aimed at the enemy's front row as it stands. Its blows are shared out so none lands on a unit already finished, but blows left over once that row has fallen are lost.
 
 ## Lanes
 
-Each road is a row of 25 slots with 5 checkpoints, 4 open slots between neighbours. The slot beside each castle is that team's home slot: nobody else may stand there, so you can always deploy at your own gate.
+Each road is a row of 25 slots with 5 checkpoints, 4 open slots between neighbours. The slot beside each castle is that team's home platform: nobody else may stand there.
 
-Checkpoints belong to whoever's front line has reached them, and troops can be dropped on any free slot from your gate up to the furthest checkpoint you hold. Lose the units holding the line and the checkpoints go with them.
+Checkpoints belong to whoever's front line has reached them. Lose the units holding the line and the checkpoints go with them.
 
-A castle has 100 health and its own guards, who shoot whatever reaches the gate. Pushes are meant to arrive, land a hit or two and die, so keep sending waves. An arrow that reaches the enemy castle only chips 1 off it. The lanes decide the match.
+A castle has 100 health. Its 5 arrows a road each turn will empty a front row of warriors, so a siege needs depth: fresh rows to step up, giants to soak up arrows, archers shooting from behind. An arrow from a hunt that reaches the enemy castle only chips 1 off it.
 
 A castle that falls loses the match on the spot. Otherwise matches are capped at 25 turns, and if both castles are still standing it goes on points (the star in the HUD): your castle's remaining health plus 10 for every checkpoint you hold at that moment. Holding all ten checkpoints is worth as much as an untouched castle, so it pays to end the match with your troops alive and forward. Level points go to the healthier castle, then to more meat. The weights are `POINTS` in `js/config.js`.
 

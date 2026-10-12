@@ -1,10 +1,18 @@
-import { W, BLUE } from './config.js';
+import { W, BLUE, CARDS } from './config.js';
 import { clamp } from './utils.js';
 import { cardBlocker, cardCost, dropOptions, dropTarget } from './cards.js';
 
 const MIN_ELEV = 0.16;   // shallowest allowed shot, in radians off horizontal
-const AIM_DEADZONE = 14; // drag distance before an aim registers
+const AIM_TURN = 0.007;  // radians the aim swings for each px of sideways drag
+const AIM_SLOP = 8;      // sideways px before a press counts as a drag
+const AIM_HOLD = 0.2;    // seconds a press must last to shoot without having been dragged
+const AIM_PULL = 60;     // how far back the bow looks drawn while aiming
+const AIM_STRIP = 12;    // aiming drags start below the castle: this far above the panel line or lower
 const TOUCH_LIFT = 44;   // dragged pieces sit above the finger so it doesn't hide them
+
+// The aim for a drag that has gone dx px sideways from where it started. A drag begins
+// aimed straight up the field and swings the opposite way to the finger, like a slingshot.
+export const dragAngle = dx => clamp(-Math.PI / 2 - dx * AIM_TURN, -Math.PI + MIN_ELEV, -MIN_ELEV);
 
 export class Input {
   constructor(stage, canvas, game, ui, sfx) {
@@ -16,7 +24,7 @@ export class Input {
     this.drag = null; // card being dragged; the renderer reads this
     this.aimPtr = null;
     this.aimStart = null;
-    this.aimMode = null;
+    this.aimMoved = false;
 
     canvas.addEventListener('pointerdown', e => this.aimDown(e));
     canvas.addEventListener('pointermove', e => this.aimMove(e));
@@ -51,35 +59,28 @@ export class Input {
     return m && m.phase === 'aim' && m.turnTeam === BLUE && !this.game.paused;
   }
 
+  // Only the strip behind the player's castle starts an aim. The shot begins pointing
+  // straight ahead.
   aimDown(e) {
     this.sfx.unlock();
     if (!this.canAim() || this.aimPtr !== null) return;
+    const m = this.game.match, p = this.toVirtual(e);
+    if (p.y < m.board.B - AIM_STRIP) return;
     this.aimPtr = e.pointerId;
-    this.aimStart = this.toVirtual(e);
-    this.aimMode = null;
+    this.aimStart = { x: p.x, at: performance.now() };
+    this.aimMoved = false;
+    m.aim = { team: BLUE, angle: dragAngle(0), pull: AIM_PULL, paths: null };
     this.capture(this.canvas, e);
   }
 
-  // Pull back like a slingshot, or push toward the target: whichever way the drag
-  // starts, it stays in that mode until released.
+  // Sliding left or right swings the aim; up and down does nothing.
   aimMove(e) {
     if (e.pointerId !== this.aimPtr) return;
     const m = this.game.match;
-    if (!this.canAim()) return;
-    const p = this.toVirtual(e);
-    const dx = p.x - this.aimStart.x, dy = p.y - this.aimStart.y, len = Math.hypot(dx, dy);
-    if (len < AIM_DEADZONE) {
-      m.aim = null;
-      this.aimMode = null;
-      return;
-    }
-    if (!this.aimMode) this.aimMode = dy > 0 ? 'pull' : 'push';
-    const sign = this.aimMode === 'pull' ? -1 : 1;
-    const ax = dx * sign, ay = dy * sign;
-    let angle;
-    if (ay >= 0) angle = ax < 0 ? -Math.PI + MIN_ELEV : -MIN_ELEV;
-    else angle = clamp(Math.atan2(ay, ax), -Math.PI + MIN_ELEV, -MIN_ELEV);
-    m.aim = { team: BLUE, angle, pull: Math.min(len, 90), paths: null };
+    if (!this.canAim() || !m.aim) return;
+    const dx = this.toVirtual(e).x - this.aimStart.x;
+    if (Math.abs(dx) > AIM_SLOP) this.aimMoved = true;
+    m.aim.angle = dragAngle(dx);
   }
 
   aimUp(e, fire) {
@@ -89,7 +90,9 @@ export class Input {
     if (!m || !this.canAim()) return;
     const aim = m.aim;
     m.aim = null;
-    if (fire && aim) this.game.playerFire(aim.angle);
+    // A quick tap that never moved is a stray touch, not a shot straight ahead.
+    const held = (performance.now() - this.aimStart.at) / 1000;
+    if (fire && aim && (this.aimMoved || held >= AIM_HOLD)) this.game.playerFire(aim.angle);
   }
 
   // ---------------------------------------------------------------- cards
@@ -108,7 +111,7 @@ export class Input {
     if (blocker) {
       const short = cardCost(m.teams[BLUE], id) - m.teams[BLUE].meat;
       this.ui.toast(blocker === 'meat' ? `Need ${short} more meat`
-        : id === 'tower' ? 'Hold a checkpoint first' : 'No free slot on your roads');
+        : id === 'tower' ? 'Hold a checkpoint first' : 'Both roads are blocked');
       this.sfx.play('error');
       return;
     }
@@ -130,8 +133,9 @@ export class Input {
     d.y = p.y - d.lift;
     d.onBoard = p.y < m.board.B + 6;
     d.target = dropTarget(m, BLUE, d.id, d.x, d.y, d.options);
-    // The DOM ghost follows the finger until the canvas has a real preview to show.
-    this.ui.moveGhost(d.x, d.y, !d.onBoard || !d.target.valid);
+    // The DOM ghost follows the finger until the canvas has a real preview under it to
+    // show. Troops land away from the finger, at the back of their column, so it stays.
+    this.ui.moveGhost(d.x, d.y, !d.onBoard || !d.target.valid || CARDS[d.id].zone === 'lane');
   }
 
   cardUp(e, el, drop) {
@@ -141,6 +145,9 @@ export class Input {
     this.ui.setDragging(-1);
     if (!drop || !d.onBoard || !d.target) return;
     if (d.target.valid) this.game.playerPlay(d.idx, d.target);
-    else this.sfx.play('error');
+    else {
+      if (CARDS[d.id].zone === 'lane') this.ui.toast('That road is blocked');
+      this.sfx.play('error');
+    }
   }
 }

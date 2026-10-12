@@ -12,18 +12,23 @@ export const RED = 1;
 export const FIELD = { halfW: 186, exp: 3.4, topPad: 100, bottomPad: 88 };
 export const ROAD = { width: 58, offset: 32 };
 
-// Each lane is a row of slots. Slot 0 is blue's home slot and slot LANE_LEN is red's:
-// only the owner may stand there, so a team can always deploy at its own gate.
+// Each lane is a line of slots, one row of troops to a slot. Slot 0 is blue's home slot
+// (its platform by the gate) and slot LANE_LEN is red's: only the owner may stand there.
 // Checkpoints sit every 5th slot, leaving 4 open slots between neighbours.
 export const LANE_LEN = 24;
 export const CHECKPOINTS = [2, 7, 12, 17, 22];
 export const HOME_INSET = 76; // px along the road from a castle to its home slot
+// A row is ROW spaces wide. A column marches MARCH slots at the end of its side's turn:
+// the distance from one checkpoint to the next.
+export const ROW = 5;
+export const MARCH = 5;
 
-// guard: what the castle's own archers do to a squad within guardSlots of the gate,
-// by squad kind.
+// The castle defends itself once its side has hunted: `arrows` arrows down each road at
+// the enemy's front row, if that row is within guardSlots of the gate. arrow: what one
+// of them does, by unit kind. It kills a warrior or an archer outright.
 export const CASTLE = {
   hp: 100, halfLen: 26, r: 26, scale: 0.85,
-  guardSlots: 2, guard: { melee: 20, archer: 20, giant: 20 },
+  guardSlots: 3, arrows: 5, arrow: { melee: 12, archer: 12, giant: 12 },
 };
 
 // An arrow bounces off the field edge up to `bounces` times and is spent on the first
@@ -38,16 +43,19 @@ export const ARROW = {
   rank: 12, fan: 0.01, abreast: 5,
 };
 
-// Lane troops. speed: slots covered in one step. range: how many slots ahead it can hit;
-// nothing reaches further than 2. dmg: damage per strike by target kind.
-// Archers die to a single blow from any squad. Warriors and giants are the same in a
-// fight (two blows fell either), but a giant is slower and dearer: its one job is guard
-// towers, which it breaks in 2 blows where warriors and archers together need 6.
+// Lane troops, one unit each. count: how many a card sends. size: spaces it takes up in
+// a row. range: how many slots ahead its row can hit. dmg: damage per blow by target.
+// Three warriors fell a warrior in two blows between them. An archer dies to any blow
+// but shoots from the rows behind: its range is half the gap between two checkpoints,
+// rounded up. A giant has the health and punch of three warriors in two spaces and lands
+// it all on one target, so it is poor at clearing a row and good at soaking up arrows
+// and breaking guard towers (2 blows, where a full row of warriors needs 4).
+// A guard tower shoots one arrow a turn at the enemy's front row.
 export const UNITS = {
-  melee: { hp: 36, range: 1, speed: 5, dmg: { melee: 24, archer: 24, giant: 24, tower: 10, castle: 25 } },
-  archer: { hp: 16, range: 2, speed: 5, dmg: { melee: 12, archer: 16, giant: 12, tower: 10, castle: 10 } },
-  giant: { hp: 36, range: 1, speed: 4, dmg: { melee: 24, archer: 24, giant: 24, tower: 30, castle: 25 } },
-  tower: { hp: 60, range: 2, dmg: { melee: 4, archer: 4, giant: 4 } },
+  melee: { count: 3, size: 1, hp: 12, range: 1, dmg: { melee: 8, archer: 8, giant: 8, tower: 3, castle: 8 } },
+  archer: { count: 3, size: 1, hp: 6, range: 3, dmg: { melee: 4, archer: 6, giant: 4, tower: 3, castle: 3 } },
+  giant: { count: 1, size: 2, hp: 36, range: 1, dmg: { melee: 24, archer: 24, giant: 24, tower: 30, castle: 25 } },
+  tower: { hp: 60, range: 3, dmg: { melee: 4, archer: 4, giant: 4 } },
 };
 
 // Prey. meat is an animal's health and its bounty in one: the number over its head. An

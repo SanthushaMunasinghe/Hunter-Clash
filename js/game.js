@@ -2,14 +2,15 @@ import { BLUE, RED, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT, POINTS } 
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
 import { collectObstacles, stepArrow, previewPaths, volleyShots, arrowTake } from './arrow.js';
-import { newTeam, dealHand, playCard, canPlayAny, basePoint } from './cards.js';
+import { newTeam, dealHand, playCard, basePoint } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
-import { advance, strikeAct, laneStep, checkpointsHeld } from './rules.js';
+import { newLane, homeSlot, rowsOf, rowSpots, laneGuard, laneFight, checkpointsHeld } from './rules.js';
 import { dist, clamp, lerp, rand, easeOut } from './utils.js';
 
 const TEAM_TEXT = ['#bfe0ff', '#ffc4c4'];
 const TEAM_RING = ['#6db6ff', '#ff7b7b'];
 const WALK_SPEED = 12; // slots per second, for the walk animation only
+const SHUFFLE_SPEED = 7; // spaces per second a unit sidesteps as its row re-forms
 
 export function createMatch(levelIdx, H) {
   const m = {
@@ -21,7 +22,7 @@ export function createMatch(levelIdx, H) {
     newcomers: [], // newly unlocked prey still waiting for room on the field
     respawns: [], // turn numbers at which killed animals are due back
     tick: 0,      // turns started so far, two per round
-    lanes: [0, 1].map(() => ({ squads: [], towers: [] })),
+    lanes: [0, 1].map(newLane),
     arrows: [],   // arrows in flight
     volley: null, // the hunt in progress: who is shooting
     aim: null, nextId: 1, timers: [], wait: {},
@@ -119,24 +120,23 @@ export class Game {
     if (m.over) return;
     await this.sleep(m, 0.2);
 
-    // Units on the board attack or step forward.
-    m.phase = 'act';
-    await this.unitsAct(m, team);
-    if (m.over) return;
+    // The castle and any guard towers shoot at whatever has come within range.
+    m.phase = 'guard';
+    await this.defend(m, team);
 
-    // Attack: spend meat on cards.
+    // Spend meat on cards. Nothing on the roads fights until the turn is ended.
     m.phase = 'cards';
     if (mine) {
-      if (canPlayAny(m, BLUE)) {
-        await new Promise(res => { m.wait.end = res; });
-        m.wait.end = null;
-      } else {
-        this.emit('toast', 'Not enough meat for a card');
-        await this.sleep(m, 1.1);
-      }
+      await new Promise(res => { m.wait.end = res; });
+      m.wait.end = null;
     } else {
       await this.aiCards(m);
     }
+
+    // End of turn: this side's troops strike what they can reach, then march.
+    m.phase = 'act';
+    await this.unitsAct(m, team);
+    if (m.over) return;
     m.phase = 'wait';
     await this.sleep(m, 0.25);
   }
@@ -190,8 +190,9 @@ export class Game {
     m.wait.end();
   }
 
-  // Shared by the player and the AI. Troops take one free step as they land and strike
-  // if that brings something into range; upgrades go straight onto the castle.
+  // Shared by the player and the AI. Troops step out of the home platform and walk up to
+  // the back of their column; nothing fights until the turn ends. Upgrades go straight
+  // onto the castle.
   play(m, team, idx, target) {
     const id = m.teams[team].hand[idx];
     const ent = playCard(m, team, idx, target);
@@ -202,19 +203,8 @@ export class Game {
       p = basePoint(m, team);
       this.fx.text(p.x, p.y - 30, id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, '#ffcf3f', false, 17);
       this.sfx.play('capture');
-    } else if (CARDS[id].zone === 'lane') {
-      const lane = m.lanes[ent.lane], from = ent.slot;
-      advance(lane, ent); // may push lower-ranked friends back a slot as it goes
-      p = m.board.lanePoint(ent.lane, ent.slot);
-      // Landing in reach of something earns a blow, once the squad has walked up to it.
-      if (strikeAct(lane, ent)) {
-        this.sleep(m, (Math.abs(ent.slot - from) + 0.8) / WALK_SPEED + 0.1).then(() => {
-          const act = !m.over && lane.squads.includes(ent) ? strikeAct(lane, ent) : null;
-          if (act) this.squadAttack(m, ent.lane, ent, act);
-        });
-      }
     } else {
-      p = m.board.lanePoint(ent.lane, ent.slot);
+      p = m.board.lanePoint(ent.lane, ent.units ? homeSlot(team) : ent.slot);
     }
     this.fx.ring(p.x, p.y, TEAM_RING[team], 8, 44, 0.4);
     return true;
@@ -352,15 +342,18 @@ export class Game {
     this.sleep(m, how === 'castle' ? 1.4 : 0.6).then(() => this.emit('over', winner));
   }
 
-  hurtSquad(m, li, s, dmg) {
-    const p = m.board.lanePoint(li, s.slot);
-    s.hp -= dmg;
-    s.flash = 0.2;
-    this.fx.text(p.x, p.y - 22, '-' + dmg, TEAM_TEXT[s.team], false, 13);
-    if (s.hp > 0) return;
-    const list = m.lanes[li].squads;
-    list.splice(list.indexOf(s), 1);
-    this.fx.puff(p.x, p.y, '#ffffff', 10, 80);
+  // Where a unit is standing right now, mid-walk included.
+  unitPoint(m, li, u) {
+    return m.board.rowPoint(li, u.vis, u.lat);
+  }
+
+  hurtUnit(m, li, u, dmg) {
+    u.hp -= dmg;
+    u.flash = 0.2;
+    if (u.hp > 0) return;
+    const p = this.unitPoint(m, li, u), list = m.lanes[li].cols[u.team].units;
+    list.splice(list.indexOf(u), 1);
+    this.fx.puff(p.x, p.y, '#ffffff', u.kind === 'giant' ? 12 : 7, 75);
   }
 
   hurtTower(m, li, tw, dmg) {
@@ -377,56 +370,56 @@ export class Game {
 
   // ---------------------------------------------------------------- unit actions
 
-  async unitsAct(m, team) {
-    await Promise.all([this.laneAct(m, team, 0), this.laneAct(m, team, 1)]);
-    await this.sleep(m, 0.2);
+  // The rules work each lane out on a copy; these play the result back on the real lane
+  // one beat at a time so it can be watched.
+
+  // Lands one volley's hits. A row of units is too tightly packed for a number each, so
+  // what the volley did to it is shown as one total over the middle of those it hit.
+  land(m, li, team, hits) {
+    const lane = m.lanes[li], foe = lane.cols[1 - team].units, sum = new Map();
+    let castle = 0;
+    for (const h of hits) {
+      if (h.kind === 'castle') castle += h.dmg;
+      else {
+        const tgt = h.kind === 'unit' ? foe.find(u => u.id === h.target) : lane.towers.find(t => t.id === h.target);
+        if (tgt) sum.set(tgt, (sum.get(tgt) || 0) + h.dmg);
+      }
+    }
+    let total = 0, n = 0, x = 0, y = 0;
+    for (const [tgt, dmg] of sum) {
+      if (!tgt.kind) {
+        this.hurtTower(m, li, tgt, dmg);
+        continue;
+      }
+      const p = this.unitPoint(m, li, tgt);
+      total += dmg; n++; x += p.x; y += p.y;
+      this.hurtUnit(m, li, tgt, dmg);
+    }
+    if (n) this.fx.text(x / n, y / n - 26, '-' + total, TEAM_TEXT[1 - team], false, 15);
+    if (castle) this.hurtCastle(m, 1 - team, castle);
   }
 
-  // Sword swing or arrow volley for an 'attack' action from a lane plan, plus its damage.
-  squadAttack(m, li, s, act) {
-    const b = m.board, lane = m.lanes[li], from = b.lanePoint(li, s.slot);
-    let to;
-    if (act.kind === 'castle') {
-      const c = b.castles[1 - s.team];
-      to = { x: c.x + (li === 0 ? -34 : 34), y: c.drawY - 8 };
-    } else {
-      to = b.lanePoint(li, act.slot);
-    }
-    if (s.kind !== 'archer') {
-      const d = dist(from.x, from.y, to.x, to.y) || 1;
-      s.lunge = 0.22;
-      s.lx = (to.x - from.x) / d;
-      s.ly = (to.y - from.y) / d;
-      this.fx.puff(lerp(from.x, to.x, 0.7), lerp(from.y, to.y, 0.7), '#fff3c4', 5, 60);
-      this.sfx.play('sword');
-    } else {
-      this.fx.shot(from.x, from.y - 8, to.x, to.y - 6, { arc: 18 });
-      this.sfx.play('bow');
-    }
-    if (act.kind === 'castle') {
-      this.hurtCastle(m, 1 - s.team, act.dmg);
-    } else if (act.kind === 'squad') {
-      const tgt = lane.squads.find(q => q.id === act.target);
-      if (tgt) this.hurtSquad(m, li, tgt, act.dmg);
-    } else {
-      const tgt = lane.towers.find(t => t.id === act.target);
-      if (tgt) this.hurtTower(m, li, tgt, act.dmg);
-    }
-  }
-
-  // The rules work the whole lane step out on a copy; this plays it back on the real
-  // lane one action at a time so it can be watched.
-  async laneAct(m, team, li) {
+  // Where a hit is aimed on the board.
+  hitPoint(m, li, team, h) {
     const lane = m.lanes[li], b = m.board;
-    const plan = laneStep(JSON.parse(JSON.stringify(lane)), team);
-    const squad = id => lane.squads.find(q => q.id === id);
+    if (h.kind === 'castle') {
+      const c = b.castles[1 - team];
+      return { x: c.x + (li === 0 ? -34 : 34), y: c.drawY - 8 };
+    }
+    if (h.kind === 'tower') {
+      const tw = lane.towers.find(t => t.id === h.target);
+      return tw && b.lanePoint(li, tw.slot);
+    }
+    const u = lane.cols[1 - team].units.find(q => q.id === h.target);
+    return u && this.unitPoint(m, li, u);
+  }
 
-    for (const act of plan) {
-      if (m.over) return;
-      if (act.type === 'guard' || act.type === 'tower') {
-        const tgt = squad(act.target);
-        if (!tgt) continue;
-        const to = b.lanePoint(li, tgt.slot);
+  // The castle looses its arrows down both roads, then each guard tower shoots.
+  async defend(m, team) {
+    const shot = await Promise.all([0, 1].map(async li => {
+      const lane = m.lanes[li], b = m.board;
+      const plan = laneGuard(JSON.parse(JSON.stringify(lane)), team);
+      for (const act of plan) {
         let from;
         if (act.type === 'guard') {
           const c = b.castles[team];
@@ -437,25 +430,64 @@ export class Game {
           const p = b.lanePoint(li, tw.slot);
           from = { x: p.x, y: p.y - 44 };
         }
-        this.fx.shot(from.x, from.y, to.x, to.y - 6, { arc: 20 });
+        for (const h of act.hits) {
+          const to = this.hitPoint(m, li, team, h);
+          if (to) this.fx.shot(from.x + rand(-6, 6), from.y, to.x, to.y - 6, { arc: 22, dur: 0.24, team });
+        }
         this.sfx.play('bow');
-        this.hurtSquad(m, li, tgt, act.dmg);
-        await this.sleep(m, 0.12);
-        continue;
+        await this.sleep(m, 0.24);
+        this.land(m, li, team, act.hits);
+        await this.sleep(m, 0.3);
       }
+      return plan.length;
+    }));
+    if (shot[0] + shot[1]) await this.sleep(m, 0.2);
+  }
 
-      const s = squad(act.by);
-      if (!s) continue;
-      const walked = Math.abs(act.to - s.slot);
-      s.slot = act.to;
-      if (act.type === 'move') {
-        await this.sleep(m, 0.04);
-        continue;
+  async unitsAct(m, team) {
+    await Promise.all([this.laneAct(m, team, 0), this.laneAct(m, team, 1)]);
+    await this.sleep(m, 0.2);
+  }
+
+  // One row's blows: swords lunge, arrows fly, then the damage lands.
+  strike(m, li, team, hits) {
+    const units = m.lanes[li].cols[team].units;
+    let swords = false, bows = false;
+    for (const h of hits) {
+      const u = units.find(q => q.id === h.by), to = this.hitPoint(m, li, team, h);
+      if (!u || !to) continue;
+      const from = this.unitPoint(m, li, u);
+      if (u.kind === 'archer') {
+        this.fx.shot(from.x, from.y - 8, to.x, to.y - 6, { arc: 18, team });
+        bows = true;
+      } else {
+        const d = dist(from.x, from.y, to.x, to.y) || 1;
+        u.lunge = 0.22;
+        u.lx = (to.x - from.x) / d;
+        u.ly = (to.y - from.y) / d;
+        this.fx.puff(lerp(from.x, to.x, 0.7), lerp(from.y, to.y, 0.7), '#fff3c4', 3, 55);
+        swords = true;
       }
-      if (walked) await this.sleep(m, walked / WALK_SPEED + 0.05);
+    }
+    if (swords) this.sfx.play('sword');
+    if (bows) this.sfx.play('bow');
+    this.land(m, li, team, hits);
+  }
+
+  async laneAct(m, team, li) {
+    const lane = m.lanes[li], col = lane.cols[team];
+    const plan = laneFight(JSON.parse(JSON.stringify(lane)), team);
+    for (const act of plan) {
       if (m.over) return;
-      this.squadAttack(m, li, s, act);
-      await this.sleep(m, 0.14);
+      if (act.type === 'move') {
+        const walked = Math.abs(act.to - col.front);
+        col.front = act.to;
+        await this.sleep(m, walked / WALK_SPEED + 0.1);
+      } else {
+        this.strike(m, li, team, act.hits);
+        // A beat for the fallen to drop and the ranks behind them to close up.
+        await this.sleep(m, 0.38);
+      }
     }
   }
 
@@ -479,13 +511,20 @@ export class Game {
     updateAnimals(m, dt);
     this.updateArrows(m, dt);
 
+    // Units walk to wherever their place in the column is now.
     for (const lane of m.lanes) {
-      for (const s of lane.squads) {
-        const d = s.slot - s.vis;
-        s.walking = Math.abs(d) > 0.01;
-        s.vis += clamp(d, -WALK_SPEED * dt, WALK_SPEED * dt);
-        s.lunge = Math.max(0, s.lunge - dt);
-        s.flash = Math.max(0, s.flash - dt);
+      for (const col of lane.cols) {
+        for (const row of rowsOf(lane, lane.cols.indexOf(col))) {
+          const spots = rowSpots(row);
+          for (const u of row.units) {
+            const d = row.slot - u.vis, side = spots.get(u) - u.lat;
+            u.walking = Math.abs(d) > 0.01 || Math.abs(side) > 0.01;
+            u.vis += clamp(d, -WALK_SPEED * dt, WALK_SPEED * dt);
+            u.lat += clamp(side, -SHUFFLE_SPEED * dt, SHUFFLE_SPEED * dt);
+            u.lunge = Math.max(0, u.lunge - dt);
+            u.flash = Math.max(0, u.flash - dt);
+          }
+        }
       }
       for (const t of lane.towers) {
         t.flash = Math.max(0, t.flash - dt);

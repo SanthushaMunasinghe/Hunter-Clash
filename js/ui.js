@@ -204,10 +204,11 @@ export class UI {
     let hint = '';
     if (!live || m.phase === 'over') hint = '';
     else if (!mine) hint = 'ENEMY TURN';
-    else if (m.phase === 'aim') hint = 'DRAG TO AIM<br>RELEASE TO SHOOT';
+    else if (m.phase === 'aim') hint = 'DRAG LEFT OR RIGHT<br>RELEASE TO SHOOT';
     else if (m.phase === 'fly') hint = 'ARROWS AWAY';
-    else if (m.phase === 'act') hint = 'UNITS ADVANCE';
-    else if (m.phase === 'cards') hint = 'DRAG A CARD<br>ONTO THE BOARD';
+    else if (m.phase === 'guard') hint = 'CASTLE DEFENDS';
+    else if (m.phase === 'act') hint = 'TROOPS FIGHT';
+    else if (m.phase === 'cards') hint = 'PLAY CARDS, THEN<br>END TURN TO FIGHT';
     this.put('hint', hint, v => { $('hint').innerHTML = v; });
 
     const cardsOn = mine && m.phase === 'cards';
