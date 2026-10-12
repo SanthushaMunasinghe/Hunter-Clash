@@ -134,7 +134,7 @@ export class Input {
     d.onBoard = p.y < m.board.B + 6;
     d.target = dropTarget(m, BLUE, d.id, d.x, d.y, d.options);
     // The DOM ghost follows the finger until the canvas has a real preview under it to
-    // show. Troops land away from the finger, at the back of their column, so it stays.
+    // show. Troops land away from the finger, in their column up the road, so it stays.
     this.ui.moveGhost(d.x, d.y, !d.onBoard || !d.target.valid || CARDS[d.id].zone === 'lane');
   }
 

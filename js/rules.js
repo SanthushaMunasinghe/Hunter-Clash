@@ -6,6 +6,7 @@ import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, UNITS, ROW, MARCH } from './c
 //   { cols: [{ front, units }, { front, units }], towers }
 // units are in the order they were sent, oldest first. They stand in rows one slot
 // apart, the first row on slot `front` and the rest stacked behind it toward home.
+// How they are shared out among those rows is worked out from the list every time.
 
 // ------------------------------------------------------------------ lanes
 
@@ -15,17 +16,24 @@ export const homeSlot = team => (team === BLUE ? 0 : LANE_LEN);
 export const newLane = () => ({ cols: [{ front: 0, units: [] }, { front: 0, units: [] }], towers: [] });
 export const towerAt = (lane, slot) => lane.towers.find(t => t.slot === slot);
 
-// Fills rows front to back in the order the units were sent. A row is ROW spaces of one
-// class: warriors and giants share a row, archers keep to their own.
+// Forms units up into rows. A row is ROW spaces of one class: warriors and giants share
+// rows, archers keep to their own. Taking the units in the order they were sent, each
+// joins the first row of its class that has room for it, or starts a new row at the
+// back. So a row is filled before another of its class begins, and melee sent after
+// archers still go forward to fill the gaps in a melee row ahead of them.
+// Melee always hold the front: if the first row would be archers, the first melee row
+// stands in front of it instead.
 function pack(units) {
   const rows = [];
   for (const u of units) {
     const cls = u.kind === 'archer' ? 'archer' : 'melee', size = UNITS[u.kind].size;
-    let row = rows[rows.length - 1];
-    if (!row || row.cls !== cls || row.used + size > ROW) rows.push(row = { cls, used: 0, units: [] });
+    let row = rows.find(r => r.cls === cls && r.used + size <= ROW);
+    if (!row) rows.push(row = { cls, used: 0, units: [] });
     row.units.push(u);
     row.used += size;
   }
+  const lead = rows.findIndex(r => r.cls === 'melee');
+  if (lead > 0) rows.unshift(...rows.splice(lead, 1));
   return rows;
 }
 
@@ -125,25 +133,25 @@ function musterSlot(lane, team) {
   return home + dir * room(lane, team, home, dir * (goal - home));
 }
 
-// Where a team's column would stand with a `kind` card's units added to the back of it:
-// { front, slot } with `slot` the row the newcomers end up in, or null if there is no
-// room for them. New units never move the front line unless the column already reaches
+// Where a team's column would stand with a `kind` card's units added to it: { front,
+// slot } with `slot` the forward-most row the newcomers fall into, or null if there is
+// no room for them. New units never move the front line unless the column already reaches
 // back to the home slot; then the whole column is pushed forward to make room, which
 // the enemy can block.
 export function placement(lane, team, kind) {
   const col = lane.cols[team], dir = dirOf(team), home = homeSlot(team);
   const fresh = Array.from({ length: UNITS[kind].count }, () => ({ kind }));
-  const rows = pack([...col.units, ...fresh]).length;
+  const rows = pack([...col.units, ...fresh]);
   let front = col.units.length ? col.front : musterSlot(lane, team);
-  const push = rows - (dir * (front - home) + 1);
+  const push = rows.length - (dir * (front - home) + 1);
   if (push > 0) {
     if (room(lane, team, front, push) < push) return null;
     front += dir * push;
   }
-  return { front, slot: front - dir * (rows - 1) };
+  return { front, slot: front - dir * rows.findIndex(row => row.units.some(u => fresh.includes(u))) };
 }
 
-// Plays a troop card: adds its units to the back of the team's column. make(kind) builds
+// Plays a troop card: adds its units to the team's column. make(kind) builds
 // one unit. Returns the new units, or null if the lane has no room for them.
 export function placeUnits(lane, team, kind, make) {
   const spot = placement(lane, team, kind);

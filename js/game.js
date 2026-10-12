@@ -191,7 +191,7 @@ export class Game {
   }
 
   // Shared by the player and the AI. Troops step out of the home platform and walk up to
-  // the back of their column; nothing fights until the turn ends. Upgrades go straight
+  // their place in the column; nothing fights until the turn ends. Upgrades go straight
   // onto the castle.
   play(m, team, idx, target) {
     const id = m.teams[team].hand[idx];

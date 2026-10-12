@@ -29,7 +29,7 @@ The number over an animal is its health and its meat in one. An arrow takes its 
 
 ## Troops
 
-A troop card sends single units: three warriors, three archers or one giant. They step out of the home platform by your gate and walk up to the back of your column on that road, so troops stack in the order you send them.
+A troop card sends single units: three warriors, three archers or one giant. They step out of the home platform by your gate and walk up to join your column on that road.
 
 | | What it is for | Weakness |
 |---|---|---|
@@ -38,9 +38,9 @@ A troop card sends single units: three warriors, three archers or one giant. The
 | **Giant** | The health and punch of three warriors in two spaces; breaks a guard tower in 2 blows | Lands it all on one target, so it clears a row slowly |
 | **Tower** | Blocks the road and shoots one arrow a turn at the enemy's front row | Giants |
 
-**Rows.** A column stands in rows, one slot apart. A row is 5 spaces of one class: warriors (1 space) and giants (2 spaces, always in the middle) share rows, archers keep to rows of their own. Rows are filled front to back in the order the units were sent, and the column closes up on its front line whenever units fall.
+**Rows.** A column stands in rows, one slot apart. A row is 5 spaces of one class: warriors (1 space) and giants (2 spaces, always in the middle) share rows, archers keep to rows of their own. Units fall in in the order you sent them, each into the first row of its class that has room, or into a new row at the back. So a row is filled to 5 before another of its class starts, and warriors or giants sent after archers still go forward to fill a gap in a melee row ahead. Melee always hold the front: if archers were there first, the first melee row forms up in front of them and the archers become the second row. The formation is redone whenever units are added, fall or march, and the column closes up on its front line.
 
-**Placing.** The first row on an empty road forms up on your nearest checkpoint (or on the furthest one a guard tower of yours holds). After that, new units never move the front line; they fall in behind. Only when the column already reaches back to your gate are new units allowed to push it forward a slot, and the enemy can block that: with the enemy in the way and no room behind, the road is full.
+**Placing.** The first row on an empty road forms up on your nearest checkpoint (or on the furthest one a guard tower of yours holds). After that, new units never move the front line; they fall in behind it. Only when the column already reaches back to your gate are new units allowed to push it forward a slot, and the enemy can block that: with the enemy in the way and no room behind, the road is full.
 
 **Fighting** happens only when a side ends its turn:
 

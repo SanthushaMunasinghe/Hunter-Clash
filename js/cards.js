@@ -80,7 +80,7 @@ export function basePoint(m, team) {
 }
 
 // Where a card may go, for highlighting while it is being dragged. A troop card only
-// picks a road: its units step out of the home platform and walk up to the back of the
+// picks a road: its units step out of the home platform and walk up to their place in the
 // column, so each road is given as the stretch from that platform to where they end up.
 export function dropOptions(m, team, id) {
   const zone = CARDS[id].zone;
