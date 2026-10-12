@@ -16,24 +16,43 @@ export const homeSlot = team => (team === BLUE ? 0 : LANE_LEN);
 export const newLane = () => ({ cols: [{ front: 0, units: [] }, { front: 0, units: [] }], towers: [] });
 export const towerAt = (lane, slot) => lane.towers.find(t => t.slot === slot);
 
+// The front row of a column that has any melee in it: one giant leading, if there is
+// one, with warriors filling the rest of the row around it. Further giants only come up
+// when there are not the warriors to fill it. So five warriors make way for a giant by
+// two of them dropping back, and giants with no warriors hold the front on their own.
+// The giant is first in line, so it is the first to be hit.
+function frontRow(units) {
+  const giants = units.filter(u => u.kind === 'giant'), warriors = units.filter(u => u.kind === 'melee');
+  if (!giants.length && !warriors.length) return null;
+  const row = { cls: 'melee', used: 0, units: [] };
+  const add = list => {
+    for (const u of list) {
+      if (row.used + UNITS[u.kind].size > ROW) break;
+      row.units.push(u);
+      row.used += UNITS[u.kind].size;
+    }
+  };
+  add(giants.slice(0, 1));
+  add(warriors);
+  add(giants.slice(1));
+  return row;
+}
+
 // Forms units up into rows. A row is ROW spaces of one class: warriors and giants share
-// rows, archers keep to their own. Taking the units in the order they were sent, each
-// joins the first row of its class that has room for it, or starts a new row at the
-// back. So a row is filled before another of its class begins, and melee sent after
-// archers still go forward to fill the gaps in a melee row ahead of them.
-// Melee always hold the front: if the first row would be archers, the first melee row
-// stands in front of it instead.
+// rows, archers keep to their own. Melee always hold the front, in the row frontRow
+// picks out. Everyone else falls in behind it in the order they were sent, each joining
+// the first row of its class that has room for it or starting a new row at the back, so
+// a row is filled before another of its class begins.
 function pack(units) {
-  const rows = [];
+  const lead = frontRow(units), rows = lead ? [lead] : [];
   for (const u of units) {
+    if (lead && lead.units.includes(u)) continue;
     const cls = u.kind === 'archer' ? 'archer' : 'melee', size = UNITS[u.kind].size;
-    let row = rows.find(r => r.cls === cls && r.used + size <= ROW);
+    let row = rows.find(r => r !== lead && r.cls === cls && r.used + size <= ROW);
     if (!row) rows.push(row = { cls, used: 0, units: [] });
     row.units.push(u);
     row.used += size;
   }
-  const lead = rows.findIndex(r => r.cls === 'melee');
-  if (lead > 0) rows.unshift(...rows.splice(lead, 1));
   return rows;
 }
 
@@ -170,16 +189,19 @@ export const newUnit = (id, team, kind) => ({ id, team, kind, hp: UNITS[kind].hp
 
 // Lands a volley of blows on the enemy's front row as it stands. Each blow goes to the
 // first unit in line that the blows before it have not already finished, so none is
-// wasted on a dead man, but a volley never reaches past the front row: blows left over
-// once it has fallen are lost. The dead are removed and the column closes up.
-// blows: [{ by, dmg }] with dmg a table by unit kind. Returns the hits that landed.
+// wasted on a dead man; a sweeping blow lands on the first `sweep` of them at once. A
+// volley never reaches past the front row: blows left over once it has fallen are lost.
+// The dead are removed and the column closes up.
+// blows: [{ by, dmg, sweep }] with dmg a table by unit kind. Returns the hits that landed.
 function hitRow(lane, foe, blows) {
   const col = lane.cols[foe], row = pack(col.units)[0], hits = [];
   for (const b of blows) {
-    const u = row.units.find(q => q.hp > 0);
-    if (!u) break;
-    u.hp -= b.dmg[u.kind];
-    hits.push({ by: b.by, kind: 'unit', target: u.id, dmg: b.dmg[u.kind] });
+    const struck = row.units.filter(q => q.hp > 0).slice(0, b.sweep || 1);
+    if (!struck.length) break;
+    for (const u of struck) {
+      u.hp -= b.dmg[u.kind];
+      hits.push({ by: b.by, kind: 'unit', target: u.id, dmg: b.dmg[u.kind] });
+    }
   }
   col.units = col.units.filter(u => u.hp > 0);
   return hits;
@@ -189,7 +211,7 @@ function hitRow(lane, foe, blows) {
 function strike(lane, team, row) {
   const tgt = aheadOf(lane, team, row.slot), hits = [];
   if (tgt.dist > reachOf(row.cls)) return hits;
-  const blows = row.units.map(u => ({ by: u.id, dmg: UNITS[u.kind].dmg }));
+  const blows = row.units.map(u => ({ by: u.id, dmg: UNITS[u.kind].dmg, sweep: UNITS[u.kind].sweep }));
   if (tgt.type === 'row') return hitRow(lane, 1 - team, blows);
   for (const b of blows) {
     if (tgt.type === 'castle') hits.push({ by: b.by, kind: 'castle', dmg: b.dmg.castle });
@@ -203,7 +225,8 @@ function strike(lane, team, row) {
 }
 
 // A team's defences on `lane`, fired once its side has hunted: the castle's arrows, then
-// one from each guard tower, at the enemy's front row if it has come close enough.
+// one from each guard tower, at the enemy's front row if it has come close enough. For
+// the castle that means right up to the gate (CASTLE.guardSlots).
 // Mutates the lane and returns what happened, in order:
 //   { type: 'guard', hits }      the castle shoots
 //   { type: 'tower', by, hits }  a guard tower shoots

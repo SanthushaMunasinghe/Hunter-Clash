@@ -24,11 +24,12 @@ export const ROW = 5;
 export const MARCH = 5;
 
 // The castle defends itself once its side has hunted: `arrows` arrows down each road at
-// the enemy's front row, if that row is within guardSlots of the gate. arrow: what one
-// of them does, by unit kind. It kills a warrior or an archer outright.
+// the enemy's front row, but only once that row is within guardSlots of the gate. On 1
+// that means right up against it, as close as an enemy can get. arrow: what one arrow
+// does, by unit kind. It kills a warrior or an archer outright.
 export const CASTLE = {
   hp: 100, halfLen: 26, r: 26, scale: 0.85,
-  guardSlots: 3, arrows: 5, arrow: { melee: 12, archer: 12, giant: 12 },
+  guardSlots: 1, arrows: 5, arrow: { melee: 12, archer: 12, giant: 12 },
 };
 
 // An arrow bounces off the field edge up to `bounces` times and stops in the first animal
@@ -47,17 +48,18 @@ export const ARROW = {
 
 // Lane troops, one unit each. size: spaces it takes up in
 // a row. range: how many slots ahead its row can hit. dmg: damage per blow by target.
+// sweep: how many units one of its blows lands on at once (1 if not given).
 // Three warriors fell a warrior in two blows between them. An archer dies to any blow
-// but shoots from the rows behind: its range is half the gap between two checkpoints,
-// rounded up. A giant has the health and punch of three warriors in two spaces and lands
-// it all on one target, so it is poor at clearing a row and good at soaking up arrows
-// and breaking guard towers (2 blows, where a full row of warriors needs 4).
-// A guard tower shoots one arrow a turn at the enemy's front row.
+// but shoots from the rows behind: with a range of 4 it still reaches what the front
+// row is fighting from three rows back. A giant has the health of three warriors in two
+// spaces, leads the front row so it takes the first blows, sweeps two enemies with
+// every swing and breaks a guard tower in 2 blows (a full row of warriors needs 4).
+// A guard tower shoots one arrow a turn at the enemy's front row, as far as an archer.
 export const UNITS = {
   melee: { size: 1, hp: 12, range: 1, dmg: { melee: 8, archer: 8, giant: 8, tower: 3, castle: 8 } },
-  archer: { size: 1, hp: 6, range: 3, dmg: { melee: 4, archer: 6, giant: 4, tower: 3, castle: 3 } },
-  giant: { size: 2, hp: 36, range: 1, dmg: { melee: 24, archer: 24, giant: 24, tower: 30, castle: 25 } },
-  tower: { hp: 60, range: 3, dmg: { melee: 4, archer: 4, giant: 4 } },
+  archer: { size: 1, hp: 6, range: 4, dmg: { melee: 4, archer: 6, giant: 4, tower: 3, castle: 3 } },
+  giant: { size: 2, hp: 36, range: 1, sweep: 2, dmg: { melee: 24, archer: 24, giant: 24, tower: 30, castle: 25 } },
+  tower: { hp: 60, range: 4, dmg: { melee: 4, archer: 4, giant: 4 } },
 };
 
 // Prey. meat is an animal's health and its bounty in one: the number over its head. An
@@ -129,13 +131,10 @@ export const START_MEAT = 0;
 export const UPGRADE = { damage: 2, maxArrows: 3 };
 
 // A match never runs long. A castle that falls loses the match on the spot. If both are
-// still standing once this many turns are up, it goes on points: what is left of your
-// castle plus the checkpoints you hold at that moment. Level points go to the healthier
-// castle, then to more meat; if even that is level, play goes on a round at a time.
+// still standing once this many turns are up, the castle with more health left wins.
+// Level health goes to the side holding more checkpoints, then to more meat; if even
+// that is level, play goes on a round at a time.
 export const TURN_LIMIT = 25;
-// What each is worth at time-up. With a checkpoint on 10, holding all ten of them counts
-// for as much as a castle at full health.
-export const POINTS = { health: 1, checkpoint: 10 };
 
 // Opponents differ only in how well they play; every stat and price is identical.
 // aimSamples: angles tried per shot. aimError: random wobble in radians.

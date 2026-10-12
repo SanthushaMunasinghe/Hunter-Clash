@@ -883,21 +883,6 @@ export const meatIconURL = () => iconURL(72, g => meatIcon(g, 40, 36, 2.3));
 export const arrowIconURL = () => iconURL(72, g => drawArrow(g, 36, 36, -Math.PI / 4, BLUE, 1.7));
 export const damageIconURL = () => iconURL(72, g => burst(g, 36, 36, 30));
 
-function star(ctx, x, y, r) {
-  ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * TAU - Math.PI / 2, k = i % 2 ? 0.45 : 1;
-    ctx.lineTo(x + Math.cos(a) * r * k, y + Math.sin(a) * r * k);
-  }
-  ctx.closePath();
-  ctx.fillStyle = '#ffcf3f';
-  ctx.fill();
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = r * 0.14;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
-}
-export const starIconURL = () => iconURL(72, g => star(g, 36, 38, 30));
 
 export function cardIcon(id) {
   const c = document.createElement('canvas');

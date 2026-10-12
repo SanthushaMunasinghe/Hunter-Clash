@@ -1,4 +1,4 @@
-import { BLUE, RED, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT, POINTS } from './config.js';
+import { BLUE, RED, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
 import { collectObstacles, stepArrow, previewPaths, volleyShots, volleyDamage, pierce } from './arrow.js';
@@ -82,7 +82,7 @@ export class Game {
         const left = TURN_LIMIT - m.turn;
         if (left === 4 || left === 0 || left < 0) {
           this.emit('banner', left > 0 ? `${left + 1} TURNS LEFT` : left === 0 ? 'FINAL TURN' : 'TIEBREAK');
-          this.emit('toast', 'At time-up, castle health plus checkpoints held decides it');
+          this.emit('toast', 'At time-up, the castle with more health wins');
           await this.sleep(m, 1.3);
         }
       }
@@ -326,17 +326,12 @@ export class Game {
     this.finish(m, 1 - team, 'castle');
   }
 
-  // A side's points if the match goes the distance: what is left of its castle, plus
-  // the checkpoints it holds right now.
-  points(m, team) {
-    return Math.round(m.castles[team].hp * POINTS.health + checkpointsHeld(m.lanes, team) * POINTS.checkpoint);
-  }
-
   // Who is ahead when time runs out: > 0 blue, < 0 red, 0 dead level.
-  // Points decide, then the healthier castle, then meat in the bank.
+  // The healthier castle wins. Level health goes to more checkpoints held, then to more
+  // meat in the bank.
   standing(m) {
-    return this.points(m, BLUE) - this.points(m, RED)
-      || m.castles[BLUE].hp - m.castles[RED].hp
+    return m.castles[BLUE].hp - m.castles[RED].hp
+      || checkpointsHeld(m.lanes, BLUE) - checkpointsHeld(m.lanes, RED)
       || m.teams[BLUE].meat - m.teams[RED].meat;
   }
 
