@@ -4,7 +4,7 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 
 Each turn runs in four steps:
 
-1. **Hunt** – the card panel slides away. Press in the strip below your castle and slide left or right: the shot starts out aimed straight up the field and swings the opposite way to your finger. Let go to shoot. Every arrow you own is loosed at once, side by side along that line and fanning out very slightly. An arrow bounces off the field edge (up to 5 times) and is spent on the first animal it hits.
+1. **Hunt** – the card panel slides away. Press in the strip below your castle and slide left or right: the shot starts out aimed straight up the field and swings the opposite way to your finger. Let go to shoot. Every arrow you own is loosed at once, side by side along that line and fanning out very slightly. An arrow bounces off the field edge (up to 5 times) and stops in the first animal it hits, unless it kills it with damage to spare.
 2. **Castle defends** – your castle fires 5 arrows down each road at the enemy's front row, if it is within 3 slots of your gate, and each of your guard towers shoots one. A castle arrow kills a warrior or an archer outright.
 3. **Spend** – each turn deals you four different cards out of six. Playing one draws a new card into its place straight away, so you can keep spending while the meat lasts. Drag one onto the board:
    - **Warriors**, **Archers**, **Giant** – onto the left or right side of the board, to send them down that road.
@@ -18,7 +18,7 @@ The deal is random but weighted. Warriors, Archers and the two upgrades all turn
 
 The herd is small, about six animals. A kill comes back two rounds later.
 
-The number over an animal is its health and its meat in one. An arrow takes its damage off that number and you bank exactly as much, so `12 DMG` means +12 meat per arrow that lands (or whatever the animal has left). While you aim, the damage per arrow is shown over your castle, with `X2`, `X3`... when the volley has more than one arrow.
+The number over an animal is its health and its meat in one. An arrow takes its damage off that number and you bank exactly as much, so `12 DMG` means +12 meat per arrow that lands (or whatever the animal has left). An arrow that kills an animal with damage to spare flies straight on through it with what is left, and can go through several; the aim preview shows that stretch as a fainter line. The damage per arrow is always shown at the foot of your castle, with `X2` or `X3` when the volley has more than one arrow, and turns green with the new figure while you hold an upgrade card over the castle.
 
 - **Quick prey** (rabbit, deer, stag; gold number) is the exception: any hit takes all of it. It keeps to the middle of the field, far from both castles, moves fast, and the aim preview does not lead it for you.
 - **Slow prey** (sheep, cow, bull, bear, dino) lasts several hits. The cheapest kinds graze nearest the castles; richer ones hold more meat and roam further out.

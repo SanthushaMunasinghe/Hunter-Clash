@@ -31,10 +31,11 @@ export const CASTLE = {
   guardSlots: 3, arrows: 5, arrow: { melee: 12, archer: 12, giant: 12 },
 };
 
-// An arrow bounces off the field edge up to `bounces` times and is spent on the first
-// animal it hits. damage is the starting hunting damage: the meat one arrow takes off an
-// animal. castleDamage is the token chip an arrow takes off the enemy castle if it gets
-// that far; it never grows.
+// An arrow bounces off the field edge up to `bounces` times and stops in the first animal
+// it hits, unless it kills it with damage to spare: then it flies on through with what
+// is left. damage is the starting hunting damage: the meat one arrow can take in all.
+// castleDamage is the token chip an arrow takes off the enemy castle if it gets that
+// far; it never grows.
 // A volley leaves the bow all at once: arrows side by side, `rank` px apart across the
 // aim line, each turned `fan` radians out from its neighbour. Past `abreast` arrows the
 // rank closes up instead of growing any wider.

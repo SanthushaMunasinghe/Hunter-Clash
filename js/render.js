@@ -233,6 +233,7 @@ export class Renderer {
     this.drawGround(ctx, m, t);
     if (drag) this.drawDropZones(ctx, m, drag, t);
     this.drawEntities(ctx, m, t);
+    if (m.phase !== 'menu') this.drawVolleyTag(ctx, m, drag, t);
     this.drawAim(ctx, m, t);
     this.drawArrows(ctx, m);
     this.drawFx(ctx);
@@ -303,24 +304,18 @@ export class Renderer {
   }
 
   drawAim(ctx, m, t) {
-    const hunting = m.phase === 'aim' && m.turnTeam === BLUE;
-    const tag = hunting ? this.volleyTag(ctx, m) : null;
-    if (hunting && !m.aim) {
+    if (m.phase === 'aim' && m.turnTeam === BLUE && !m.aim) {
       // Waiting for the player: the volley nocked straight ahead. The card panel is hidden
       // for this, so the prompt and the demo hand sit in the open strip under the castle.
       const b = m.board;
       const demo = m.tutorial ? this.tutorialPose(m, t) : null;
-      if (demo && demo.aim) this.drawAimPath(ctx, m, previewPaths(m, BLUE, demo.aim.angle), demo.aim.angle, demo.aim.pull, BLUE, t, tag);
+      if (demo && demo.aim) this.drawAimPath(ctx, m, previewPaths(m, BLUE, demo.aim.angle), demo.aim.angle, demo.aim.pull, BLUE, t);
       else this.drawNocked(ctx, m, BLUE, -Math.PI / 2);
       this.drawAimPopup(ctx, b.cx, b.B + 30, t);
       if (demo) S.drawHand(ctx, demo.x, demo.y, demo.pressed, demo.alpha);
     } else {
       const aim = m.aim;
-      if (aim && aim.paths) this.drawAimPath(ctx, m, aim.paths, aim.angle, aim.pull, aim.team, t, tag);
-    }
-    if (tag) {
-      S.label(ctx, tag.dmg, tag.x - tag.w / 2, tag.y, tag.size, '#ffcf3f', 'left');
-      S.label(ctx, tag.mult, tag.x + tag.w / 2, tag.y, tag.size, '#fff', 'right');
+      if (aim && aim.paths) this.drawAimPath(ctx, m, aim.paths, aim.angle, aim.pull, aim.team, t);
     }
   }
 
@@ -329,15 +324,19 @@ export class Renderer {
     for (const s of volleyShots(m, team, angle)) S.drawArrow(ctx, s.x + s.dx * NOCK, s.y + s.dy * NOCK, s.angle, team);
   }
 
-  // The label over the nocked arrows while the player aims: the meat one arrow takes off
-  // an animal, and how many arrows the volley has if it is more than one. Centred on
-  // (x, y), w wide.
-  volleyTag(ctx, m) {
-    const T = m.teams[BLUE], L = m.board.castles[BLUE].launch, size = 18;
-    const dmg = `${T.damage} DMG`, mult = T.arrows > 1 ? `X${T.arrows}` : '';
+  // Always on at the foot of the player's castle: the meat one arrow takes off an animal,
+  // and how many arrows the volley has if it is more than one. While an upgrade card is
+  // held over the castle it shows what the card would make it, in green.
+  drawVolleyTag(ctx, m, drag, t) {
+    const T = m.teams[BLUE], c = m.board.castles[BLUE], size = 18;
+    const held = drag && drag.onBoard && drag.target && drag.target.valid && CARDS[drag.id].zone === 'base' ? drag.id : null;
+    const damage = T.damage + (held === 'damage' ? UPGRADE.damage : 0), arrows = T.arrows + (held === 'arrow' ? 1 : 0);
+    const dmg = `${damage} DMG`, mult = arrows > 1 ? `X${arrows}` : '';
     ctx.font = S.fontStr(size);
     const w = ctx.measureText(dmg).width + (mult ? 6 + ctx.measureText(mult).width : 0);
-    return { dmg, mult, size, w, x: L.x, y: L.y - 50 };
+    const y = c.drawY + 30 - (held ? Math.abs(Math.sin(t * 6)) * 3 : 0);
+    S.label(ctx, dmg, c.x - w / 2, y, size, held === 'damage' ? '#8dff7a' : '#ffcf3f', 'left');
+    S.label(ctx, mult, c.x + w / 2, y, size, held === 'arrow' ? '#8dff7a' : '#fff', 'right');
   }
 
   // The looping hand demo shown on the first turn of a Noob match: press in the strip
@@ -376,9 +375,10 @@ export class Renderer {
   }
 
   // Dotted preview, one line per arrow of the volley: launch -> first contact, then a
-  // short fading stub of the bounce. Animals in the line of fire light up. The dots
-  // leave room for `tag`, the damage label, when there is one.
-  drawAimPath(ctx, m, paths, angle, pull, team, t, tag) {
+  // short fading stub of the bounce. Where an arrow would kill an animal and fly on
+  // through it, a fainter line carries on to whatever it meets next. Animals in the line
+  // of fire light up.
+  drawAimPath(ctx, m, paths, angle, pull, team, t) {
     const L = m.board.castles[team].launch, col = team === BLUE ? '255,255,255' : '255,190,190';
 
     // Pull-back beam behind the launch point.
@@ -395,19 +395,22 @@ export class Renderer {
     const dots = (p, q, maxLen, a0, a1) => {
       const full = Math.hypot(q.x - p.x, q.y - p.y), len = Math.min(full, maxLen);
       for (let d = flow; d < len; d += 15) {
-        const k = d / full, x = lerp(p.x, q.x, k), y = lerp(p.y, q.y, k);
-        if (tag && Math.abs(x - tag.x) < tag.w / 2 + 7 && Math.abs(y - tag.y) < tag.size * 0.8) continue;
-        ctx.fillStyle = `rgba(${col},${lerp(a0, a1, d / len)})`;
-        S.circle(ctx, x, y, 3.4);
+        const k = d / full, alpha = lerp(a0, a1, d / len);
+        ctx.fillStyle = `rgba(${col},${alpha})`;
+        S.circle(ctx, lerp(p.x, q.x, k), lerp(p.y, q.y, k), 3.4);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(31,36,51,0.45)';
+        ctx.strokeStyle = `rgba(31,36,51,${0.45 * Math.min(1, alpha * 1.6)})`;
         ctx.lineWidth = 1;
         ctx.stroke();
       }
     };
     for (const pts of paths) {
-      if (pts[1]) dots(pts[0], pts[1], Infinity, 0.95, 0.95);
-      if (pts[2]) dots(pts[1], pts[2], pts[2].kind === 'animal' ? Infinity : 150, 0.9, pts[2].kind === 'animal' ? 0.9 : 0.05);
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const p = pts[i], q = pts[i + 1], prey = q.kind === 'animal';
+        if (p.pass) dots(p, q, Infinity, 0.4, 0.4);
+        else if (!i) dots(p, q, Infinity, 0.95, 0.95);
+        else dots(p, q, prey ? Infinity : 150, 0.9, prey ? 0.9 : 0.05);
+      }
     }
     const lit = new Set();
     for (const p of paths.flat()) {
@@ -550,7 +553,7 @@ export class Renderer {
     if (!tg || !d.onBoard) return;
     const b = m.board, zone = CARDS[d.id].zone;
     if (zone === 'base') {
-      if (tg.valid) S.label(ctx, d.id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, tg.x, tg.y - 74, 18, '#ffcf3f');
+      if (tg.valid) S.label(ctx, d.id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, tg.x, tg.y - 74, 18, '#8dff7a');
     } else if (tg.valid) {
       ctx.globalAlpha = 0.85;
       if (zone === 'lane') {

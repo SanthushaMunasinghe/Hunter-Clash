@@ -17,13 +17,15 @@ export function collectObstacles(m, team) {
   return obs;
 }
 
-// An arrow is spent on whatever onHit says 'stop' for, and bounces off everything else
-// until it runs out of bounces.
+// An arrow is spent on whatever onHit says 'stop' for, flies straight on through what it
+// says 'pass' for, and bounces off everything else until it runs out of bounces.
+// Returns true if it passed through.
 function contact(ar, nx, ny, o, onHit) {
   const res = onHit(o, ar);
+  if (res === 'pass') return true;
   if (res === 'stop' || ar.bouncesLeft <= 0) {
     ar.done = true;
-    return;
+    return false;
   }
   ar.bouncesLeft--;
   const dot = ar.dx * nx + ar.dy * ny;
@@ -32,10 +34,12 @@ function contact(ar, nx, ny, o, onHit) {
   const l = Math.hypot(ar.dx, ar.dy) || 1;
   ar.dx /= l;
   ar.dy /= l;
+  return false;
 }
 
 // Advances the arrow `distance` px in small sub-steps. onHit(obstacle, arrow) applies the
-// effect and returns 'stop' if the arrow is spent on it.
+// effect and returns 'stop' if the arrow is spent on it, or 'pass' if it has killed the
+// obstacle (and marked it dead) and carries on.
 export function stepArrow(ar, obs, board, distance, onHit) {
   const R0 = ARROW.radius;
   let left = distance;
@@ -56,9 +60,10 @@ export function stepArrow(ar, obs, board, distance, onHit) {
       if (R - dd > depth) { depth = R - dd; hit = o; hx = ex; hy = ey; }
     }
     if (hit) {
-      contact(ar, hx, hy, hit, onHit);
-      ar.x += hx * (depth + 0.5);
-      ar.y += hy * (depth + 0.5);
+      if (!contact(ar, hx, hy, hit, onHit)) {
+        ar.x += hx * (depth + 0.5);
+        ar.y += hy * (depth + 0.5);
+      }
       continue;
     }
 
@@ -73,9 +78,19 @@ export function stepArrow(ar, obs, board, distance, onHit) {
   }
 }
 
-// The meat an arrow of `damage` takes off an animal: its damage, or whatever is left.
-// Quick prey gives up everything to any hit.
-export const arrowTake = (a, damage) => (a.fast ? a.left : Math.min(a.left, damage));
+// The meat an arrow with `damage` left in it takes off an animal: that damage, or
+// whatever the animal has. Quick prey gives up everything to any hit.
+const arrowTake = (a, damage) => (a.fast ? a.left : Math.min(a.left, damage));
+
+// An arrow hits an animal: takes its meat and loses that much of its own power. If the
+// animal is dead and the arrow has power to spare, it flies on through to the next.
+// `a` needs { left, fast }. Returns { gain, pass }.
+export function pierce(ar, a) {
+  const gain = arrowTake(a, ar.power);
+  a.left -= gain;
+  ar.power -= gain;
+  return { gain, pass: a.left <= 0 && ar.power > 0 };
+}
 
 // A team's volley as it leaves the bow: every arrow it owns at once, side by side across
 // the aim line and fanned out very slightly, so the volley as a whole flies where it was
@@ -105,22 +120,27 @@ function freeze(m, team, lead) {
 
 // Dry run of a whole volley against frozen obstacles `obs`. The arrows fly together as
 // they do for real, so an animal one of them kills is out of the way of the rest.
-// maxContacts: how many contacts each arrow is followed for. paths: if given, one list
-// per arrow that its contacts are added to.
+// maxContacts: how many contacts each arrow is followed for, not counting animals it
+// goes straight through. paths: if given, one list per arrow that its contacts are added
+// to, those it passed through marked `pass`; an arrow that has passed through something
+// is then only followed as far as its next contact.
 function dryVolley(m, team, angle, obs, maxContacts, paths) {
-  const damage = m.teams[team].damage, res = { meat: 0, castle: 0 };
+  const res = { meat: 0, castle: 0 };
   const arrows = volleyShots(m, team, angle).map(s => ({
-    x: s.x, y: s.y, dx: s.dx, dy: s.dy,
+    x: s.x, y: s.y, dx: s.dx, dy: s.dy, power: m.teams[team].damage,
     bouncesLeft: Math.min(ARROW.bounces, maxContacts - 1), done: false,
   }));
   const onHit = (o, ar) => {
-    if (paths) paths[arrows.indexOf(ar)].push({ x: ar.x, y: ar.y, kind: o.kind, ref: o.ref, ox: o.x, oy: o.y, r: o.r });
+    const point = { x: ar.x, y: ar.y, kind: o.kind, ref: o.ref, ox: o.x, oy: o.y, r: o.r };
+    if (paths) paths[arrows.indexOf(ar)].push(point);
     if (o.kind === 'animal') {
-      const gain = arrowTake(o, damage);
-      o.left -= gain;
-      res.meat += gain;
+      const hit = pierce(ar, o);
+      res.meat += hit.gain;
       if (o.left <= 0) o.dead = true;
-      return 'stop';
+      if (!hit.pass) return 'stop';
+      point.pass = true;
+      if (paths) ar.bouncesLeft = 0;
+      return 'pass';
     }
     if (o.kind === 'castle') {
       res.castle += ARROW.castleDamage;
@@ -145,8 +165,8 @@ export function simulateVolley(m, team, angle, lead = false) {
 }
 
 // Aim preview: for each arrow of the volley, its launch point and then up to two
-// contacts against the field as it stands right now. Animals are not led, so fast ones
-// still take judgement.
+// contacts against the field as it stands right now, plus any animals it would go
+// straight through. Animals are not led, so fast ones still take judgement.
 export function previewPaths(m, team, angle) {
   const paths = volleyShots(m, team, angle).map(s => [{ x: s.x, y: s.y, kind: 'start' }]);
   dryVolley(m, team, angle, freeze(m, team, false), 2, paths);

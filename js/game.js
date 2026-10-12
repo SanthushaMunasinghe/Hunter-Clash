@@ -1,7 +1,7 @@
 import { BLUE, RED, CASTLE, ARROW, CARDS, UPGRADE, LEVELS, TURN_LIMIT, POINTS } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
-import { collectObstacles, stepArrow, previewPaths, volleyShots, arrowTake } from './arrow.js';
+import { collectObstacles, stepArrow, previewPaths, volleyShots, pierce } from './arrow.js';
 import { newTeam, dealHand, playCard, basePoint } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
 import { newLane, homeSlot, rowsOf, rowSpots, laneGuard, laneFight, checkpointsHeld } from './rules.js';
@@ -162,10 +162,14 @@ export class Game {
     for (let i = 0; i < lvl.maxCards && !m.over; i++) {
       const act = chooseCard(m, RED, lvl);
       if (!act) break;
-      const name = CARDS[m.teams[RED].hand[act.idx]].name;
+      const id = m.teams[RED].hand[act.idx], T = m.teams[RED];
       if (!this.play(m, RED, act.idx, act.target)) break;
-      this.emit('toast', `Enemy played ${name}`);
-      await this.sleep(m, 0.55);
+      // An upgrade is spelt out, and left up long enough to read.
+      const upgrade = CARDS[id].zone === 'base';
+      this.emit('toast', id === 'arrow' ? `Enemy +1 Arrow: now shoots ${T.arrows} arrows a hunt`
+        : id === 'damage' ? `Enemy +Damage: its arrows now do ${T.damage} DMG`
+          : `Enemy played ${CARDS[id].name}`);
+      await this.sleep(m, upgrade ? 1.2 : 0.55);
     }
   }
 
@@ -201,7 +205,8 @@ export class Game {
     let p;
     if (ent.upgrade) {
       p = basePoint(m, team);
-      this.fx.text(p.x, p.y - 30, id === 'arrow' ? '+1 ARROW' : `+${UPGRADE.damage} DAMAGE`, '#ffcf3f', false, 17);
+      const T = m.teams[team];
+      this.fx.text(p.x, p.y - 30, id === 'arrow' ? `+1 ARROW = X${T.arrows}` : `+${UPGRADE.damage} = ${T.damage} DMG`, '#ffcf3f', false, 17);
       this.sfx.play('capture');
     } else {
       p = m.board.lanePoint(ent.lane, ent.units ? homeSlot(team) : ent.slot);
@@ -217,7 +222,7 @@ export class Game {
   fire(m, team, angle) {
     for (const s of volleyShots(m, team, angle)) {
       m.arrows.push({
-        team, x: s.x, y: s.y, dx: s.dx, dy: s.dy,
+        team, x: s.x, y: s.y, dx: s.dx, dy: s.dy, power: m.teams[team].damage,
         bouncesLeft: ARROW.bounces, done: false, life: 0, fade: 0, trail: [],
       });
     }
@@ -258,15 +263,17 @@ export class Game {
     }
   }
 
-  // An arrow is spent on the first animal it meets (or on the enemy castle) and bounces
-  // off everything else.
+  // An arrow spends its power on the animals it meets. One that kills with power to spare
+  // flies on through with what is left; otherwise it stops there. It is also spent on
+  // the enemy castle, and bounces off everything else.
   arrowHit(m, ar, o) {
     if (o.kind === 'animal') {
       o.ref.kx += ar.dx * 70;
       o.ref.ky += ar.dy * 70;
-      this.hurtAnimal(m, o.ref, m.teams[ar.team].damage, ar.team);
+      const hit = pierce(ar, o.ref);
+      this.gotMeat(m, o.ref, hit.gain, ar.team);
       if (o.ref.left <= 0) o.dead = true;
-      return 'stop';
+      return hit.pass ? 'pass' : 'stop';
     }
     if (o.kind === 'castle') {
       this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);
@@ -278,12 +285,10 @@ export class Game {
 
   // ---------------------------------------------------------------- damage
 
-  // An arrow takes its damage in meat straight off the animal, and the hunter banks
-  // exactly that much.
-  hurtAnimal(m, a, dmg, team) {
-    const gain = arrowTake(a, dmg);
-    if (gain <= 0) return 0;
-    a.left -= gain;
+  // An arrow has taken `gain` meat straight off an animal: the hunter banks exactly that
+  // much, and the animal dies if it has none left.
+  gotMeat(m, a, gain, team) {
+    if (gain <= 0) return;
     a.flash = 0.18;
     m.teams[team].meat += gain;
     m.teams[team].hunted += gain;
@@ -302,7 +307,6 @@ export class Game {
     } else {
       this.sfx.play('hit');
     }
-    return gain;
   }
 
   hurtCastle(m, team, dmg) {
