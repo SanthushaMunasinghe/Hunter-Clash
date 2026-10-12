@@ -1,6 +1,6 @@
 import { W, BLUE, RED, ROAD, CARDS, CHECKPOINTS, UPGRADE } from './config.js';
 import * as S from './sprites.js';
-import { cpOwner, homeSlot } from './rules.js';
+import { cpOwner, homeSlot, gateSlot } from './rules.js';
 import { previewPaths, volleyShots, volleyDamage } from './arrow.js';
 import { dragAngle } from './input.js';
 import { seeded, rand, lerp, clamp, easeOut, TAU } from './utils.js';
@@ -241,7 +241,7 @@ export class Renderer {
     if (drag) this.drawDropGhost(ctx, m, drag, t);
   }
 
-  // Home pads and checkpoints, flat on the road.
+  // Home rows, home pads and checkpoints, flat on the road.
   drawGround(ctx, m, t) {
     const b = m.board;
     if (this.cpMatch !== m) {
@@ -252,6 +252,29 @@ export class Renderer {
       for (const team of [BLUE, RED]) {
         const slot = homeSlot(team), p = b.lanePoint(li, slot), d = b.laneDir(li, slot);
         const sign = team === BLUE ? 1 : -1;
+        // The rows only this side may stand on are tinted its colour, with a line across
+        // the road where the enemy has to halt.
+        const c = S.TEAM_COL[team], edge = gateSlot(team) + sign * 0.5;
+        ctx.beginPath();
+        for (let s = Math.min(slot, edge); s <= Math.max(slot, edge) + 0.01; s += 0.25) {
+          const q = b.lanePoint(li, s);
+          ctx.lineTo(q.x, q.y);
+        }
+        ctx.strokeStyle = c.main;
+        ctx.globalAlpha = 0.2;
+        ctx.lineWidth = ROAD.width - 6;
+        ctx.stroke();
+        const e0 = b.rowPoint(li, edge, -2.7), e1 = b.rowPoint(li, edge, 2.7);
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = c.dark;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([7, 5]);
+        ctx.beginPath();
+        ctx.moveTo(e0.x, e0.y);
+        ctx.lineTo(e1.x, e1.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
         S.drawHomePad(ctx, p.x, p.y, team, d.x * sign, d.y * sign);
       }
       for (const slot of CHECKPOINTS) {

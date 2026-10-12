@@ -1,4 +1,4 @@
-import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, UNITS, ROW, MARCH } from './config.js';
+import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, UNITS, ROW, MARCH, HOME_ROWS } from './config.js';
 
 // Who may stand and move where, and how a lane fights. Pure functions over match state.
 //
@@ -12,6 +12,9 @@ import { BLUE, RED, LANE_LEN, CHECKPOINTS, CASTLE, UNITS, ROW, MARCH } from './c
 
 export const dirOf = team => (team === BLUE ? 1 : -1);
 export const homeSlot = team => (team === BLUE ? 0 : LANE_LEN);
+// The last of a team's home rows, which the enemy can come up to but not onto. For
+// anyone attacking the castle, or the castle shooting back, this is where it stands.
+export const gateSlot = team => homeSlot(team) + dirOf(team) * (HOME_ROWS - 1);
 
 export const newLane = () => ({ cols: [{ front: 0, units: [] }, { front: 0, units: [] }], towers: [] });
 export const towerAt = (lane, slot) => lane.towers.find(t => t.slot === slot);
@@ -117,11 +120,11 @@ export function towerSpots(m, team) {
 }
 
 // The nearest enemy thing ahead of `slot`, as { type, dist, ref }: the enemy's front row,
-// a guard tower, or the castle behind the enemy's home slot. A row shields whatever it
-// is standing on.
+// a guard tower, or the castle, which counts as standing on the last of the enemy's home
+// rows. A row shields whatever it is standing on.
 function aheadOf(lane, team, slot) {
   const dir = dirOf(team), foe = lane.cols[1 - team];
-  let best = { type: 'castle', dist: dir * (homeSlot(1 - team) - slot) };
+  let best = { type: 'castle', dist: dir * (gateSlot(1 - team) - slot) };
   for (const t of lane.towers) {
     const d = dir * (t.slot - slot);
     if (t.team !== team && d > 0 && d < best.dist) best = { type: 'tower', dist: d, ref: t };
@@ -134,8 +137,8 @@ function aheadOf(lane, team, slot) {
 }
 
 // How far a column fronted on `front` can walk, up to `max` slots. It cannot pass the
-// enemy's column, a guard tower or the enemy gate, and with `reach` it halts as soon as
-// one of them is that close.
+// enemy's column or a guard tower, or step onto the enemy's home rows, and with `reach`
+// it halts as soon as one of them is that close.
 function room(lane, team, front, max, reach = 1) {
   return Math.max(0, Math.min(max, aheadOf(lane, team, front).dist - reach));
 }
@@ -234,7 +237,7 @@ function strike(lane, team, row) {
 export function laneGuard(lane, team) {
   const acts = [], foe = lane.cols[1 - team];
   const near = (slot, range) => foe.units.length && Math.abs(foe.front - slot) <= range;
-  if (near(homeSlot(team), CASTLE.guardSlots)) {
+  if (near(gateSlot(team), CASTLE.guardSlots)) {
     const blows = Array.from({ length: CASTLE.arrows }, () => ({ dmg: CASTLE.arrow }));
     acts.push({ type: 'guard', hits: hitRow(lane, 1 - team, blows) });
   }

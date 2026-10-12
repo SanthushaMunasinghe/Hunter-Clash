@@ -5,7 +5,7 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 Each turn runs in four steps:
 
 1. **Hunt** – the card panel slides away. Press in the strip below your castle and slide left or right: the shot starts out aimed straight up the field and swings the opposite way to your finger. Let go to shoot. Every arrow you own is loosed at once, side by side along that line and fanning out very slightly. An arrow bounces off the field edge (up to 5 times) and stops in the first animal it hits, unless it kills it with damage to spare.
-2. **Castle defends** – your castle fires 5 arrows down a road at the enemy's front row, but only once that row has come right up to your gate. Each of your guard towers shoots one arrow at a front row within 4 slots. A castle arrow kills a warrior or an archer outright.
+2. **Castle defends** – your castle fires 5 arrows down a road at the enemy's front row, but only once that row has come right up to your home rows. Each of your guard towers shoots one arrow at a front row within 4 slots. A castle arrow kills a warrior or an archer outright.
 3. **Spend** – each turn deals you four different cards out of six. Playing one draws a new card into its place straight away, so you can keep spending while the meat lasts. Drag one onto the board:
    - **Warriors**, **Archers**, **Giant** – onto the left or right side of the board, to send them down that road.
    - **Tower** – onto a checkpoint you hold.
@@ -40,7 +40,7 @@ A troop card sends single units: three warriors, three archers or one giant to s
 
 **Rows.** A column stands in rows, one slot apart. A row is 5 spaces of one class: warriors (1 space) and giants (2 spaces, always in the middle) share rows, archers keep to rows of their own. Melee always hold the front, and the front row is led by one giant if you have one, with warriors filling the rest of it: five warriors make room for a giant by two of them dropping back a row. More giants only come up to the front when there are not the warriors to fill it, so with no warriors the giants hold the front themselves. Everyone else falls in behind in the order you sent them, each into the first row of its class that has room, or into a new row at the back. The formation is redone whenever units are added, fall or march, and the column closes up on its front line.
 
-**Placing.** The first row on an empty road forms up on your nearest checkpoint (or on the furthest one a guard tower of yours holds). After that, new units never move the front line; they fall in behind it. Only when the column already reaches back to your gate are new units allowed to push it forward a slot, and the enemy can block that: with the enemy in the way and no room behind, the road is full.
+**Placing.** The first row on an empty road forms up on your nearest checkpoint (or on the furthest one a guard tower of yours holds). After that, new units never move the front line; they fall in behind it. Only when the column already reaches back to your gate are new units allowed to push it forward a slot, and the enemy can block that: with the enemy in the way and no room behind, the road is full. The three rows from your platform to your first checkpoint are yours alone, though, so even with the enemy camped outside you can always field three rows there.
 
 **Fighting** happens only when a side ends its turn:
 
@@ -52,11 +52,11 @@ A volley is aimed at the enemy's front row as it stands. Its blows are shared ou
 
 ## Lanes
 
-Each road is a row of 25 slots with 5 checkpoints, 4 open slots between neighbours. The slot beside each castle is that team's home platform: nobody else may stand there.
+Each road is a row of 25 slots with 5 checkpoints, 4 open slots between neighbours. The three slots nearest each castle, from its platform to its first checkpoint, are that side's home rows (tinted its colour, with a dashed line across the road at the end of them): the enemy cannot step onto them.
 
 Checkpoints belong to whoever's front line has reached them. Lose the units holding the line and the checkpoints go with them.
 
-A castle has 100 health. It only shoots at troops that have reached its gate, and then its 5 arrows will empty a front row of warriors, so a siege needs depth: fresh rows to step up, a giant in front to soak up arrows, archers shooting from behind. Archers at the head of a column stop 4 slots short of the gate and shoot from there, out of the castle's reach, so they have to be driven off with troops. An arrow from a hunt that reaches the enemy castle only chips 1 off it.
+A castle has 100 health. Attackers halt at the line outside its home rows and besiege it from there: the castle counts as standing on the last home row, so warriors at the line strike it and archers count their range to that row, not to the walls. The castle only shoots back at a front row that has reached the line, and then its 5 arrows will empty a front row of warriors, so a siege needs depth: fresh rows to step up, a giant in front to soak up arrows, archers shooting from behind. Defenders standing on the last home row shield the castle. Archers at the head of a column stop 4 slots short of that row and shoot from there, out of the castle's reach, so they have to be driven off with troops. An arrow from a hunt that reaches the enemy castle only chips 1 off it.
 
 A castle that falls loses the match on the spot. Otherwise matches are capped at 25 turns, and if both castles are still standing the one with more health left wins. Level health goes to the side holding more checkpoints, then to more meat.
 

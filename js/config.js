@@ -13,10 +13,16 @@ export const FIELD = { halfW: 186, exp: 3.4, topPad: 100, bottomPad: 88 };
 export const ROAD = { width: 58, offset: 32 };
 
 // Each lane is a line of slots, one row of troops to a slot. Slot 0 is blue's home slot
-// (its platform by the gate) and slot LANE_LEN is red's: only the owner may stand there.
+// (its platform by the gate) and slot LANE_LEN is red's.
 // Checkpoints sit every 5th slot, leaving 4 open slots between neighbours.
 export const LANE_LEN = 24;
 export const CHECKPOINTS = [2, 7, 12, 17, 22];
+// The HOME_ROWS slots nearest each castle, from its platform to its first checkpoint,
+// are that side's alone: the enemy cannot step onto them, so there is always room to
+// send troops out however hard the gate is pressed. The enemy halts on the slot just
+// outside and besieges the castle from there, as if the castle stood on the last of
+// those rows: that is where its distance is measured to, for swords and arrows alike.
+export const HOME_ROWS = 3;
 export const HOME_INSET = 76; // px along the road from a castle to its home slot
 // A row is ROW spaces wide. A column marches MARCH slots at the end of its side's turn:
 // the distance from one checkpoint to the next.
@@ -24,8 +30,8 @@ export const ROW = 5;
 export const MARCH = 5;
 
 // The castle defends itself once its side has hunted: `arrows` arrows down each road at
-// the enemy's front row, but only once that row is within guardSlots of the gate. On 1
-// that means right up against it, as close as an enemy can get. arrow: what one arrow
+// the enemy's front row, but only once that row is within guardSlots of its home rows.
+// On 1 that means right up against them, as close as an enemy can get. arrow: what one arrow
 // does, by unit kind. It kills a warrior or an archer outright.
 export const CASTLE = {
   hp: 100, halfLen: 26, r: 26, scale: 0.85,
