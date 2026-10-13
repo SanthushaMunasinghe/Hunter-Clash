@@ -126,9 +126,12 @@ export const CARDS = {
 };
 // All the cards, in the order they are laid out when dealt.
 export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage', 'bounce'];
-// Each turn deals HAND_SIZE different cards at random. Playing one draws a new card into
-// its place straight away, so the hand is always full.
+// A hand is HAND_SIZE different cards, dealt once at the start of the match and kept from
+// turn to turn. Playing a card draws a new one into its place straight away, so the hand
+// is always full. A side can also pay REFRESH_COST meat on its turn to throw the whole
+// hand in and be dealt a fresh one.
 export const HAND_SIZE = 4;
+export const REFRESH_COST = 10;
 // How likely each card is to be dealt. The upgrades turn up about as often as warriors
 // and archers all match long, however many have been bought. +1 Arrow drops out
 // of the deal for good at UPGRADE.maxArrows arrows. The tower is a little rarer, and is
@@ -143,11 +146,10 @@ export const DEAL = {
   ramp: [2, 6],             // giant odds grow between these turns
   tower: 5,
   towerNeeds: 2,
-  // Small troop cards, for a side whose cards have grown. Each troop card in the hand
-  // dealt at the start of a turn has `chance` of being a small one, up to `most` of
-  // them. They are more common while the enemy's front row is within `within` slots of
-  // the side's home rows. Cards drawn during the turn are always full size, so a turn
-  // never has more small cards than that.
+  // Small troop cards, for a side whose cards have grown. Each troop card it draws has
+  // `chance` of being a small one, as long as it holds fewer than `most` of them and has
+  // drawn fewer than `most` this turn, so they cannot be chained. They are more common
+  // while the enemy's front row is within `within` slots of the side's home rows.
   small: { calm: { chance: 0.13, most: 1 }, pressed: { chance: 0.7, most: 2 }, within: 6 },
 };
 export const START_MEAT = 0;

@@ -1,4 +1,4 @@
-import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT } from './config.js';
+import { BLUE, LANE_LEN, CARDS, UNITS, TURN_LIMIT, REFRESH_COST } from './config.js';
 import { scout, simulateVolley, volleyDamage } from './arrow.js';
 import { cardBlocker, cardCost, cardUnits, damageGain, basePoint } from './cards.js';
 import { towerSpots, frontier, homeSlot, rowsOf, placement, placeUnits, newUnit, laneGuard, laneFight } from './rules.js';
@@ -108,6 +108,15 @@ function deepLaneOptions(m, team, lvl) {
     }
   });
   return opts;
+}
+
+// Whether to pay for a fresh hand before playing anything. A hand is kept from turn to
+// turn now, so it can come to hold no troops at all; when that happens and there is meat
+// for the refresh and a troop card after it, a new hand is worth the price, since a
+// fresh one always has warriors or archers in it.
+export function wantsRefresh(m, team) {
+  const T = m.teams[team];
+  return !T.hand.some(id => id && CARDS[id].zone === 'lane') && T.meat >= REFRESH_COST + cardCost(T, 'melee');
 }
 
 // Picks one playable card and where to put it, or null to stop spending.

@@ -1,4 +1,4 @@
-import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT, ARROW } from './config.js';
+import { BLUE, RED, CARDS, LEVELS, HAND_SIZE, TURN_LIMIT, ARROW, REFRESH_COST } from './config.js';
 import { cardBlocker, cardCost, cardUnits, damageGain } from './cards.js';
 import { checkpointsHeld } from './rules.js';
 import { volleyDamage } from './arrow.js';
@@ -53,6 +53,8 @@ export class UI {
     });
 
     tap($('btn-end'), () => game.playerEndTurn());
+    tap($('btn-refresh'), () => game.playerRefresh());
+    $('refresh-cost').textContent = REFRESH_COST;
     tap($('btn-help'), () => this.show('help'));
     tap($('btn-help-close'), () => this.hide('help'));
     tap($('btn-menu-help'), () => this.show('help'));
@@ -127,7 +129,16 @@ export class UI {
     if (type === 'turn') this.banner(data === BLUE ? 'YOUR TURN' : 'ENEMY TURN', data === BLUE ? 'blue' : 'red');
     else if (type === 'banner') this.banner(data, 'gold');
     else if (type === 'toast') this.toast(data);
+    else if (type === 'refresh' && data === BLUE) this.dealIn();
     else if (type === 'over') this.showResult(data);
+  }
+
+  // A fresh hand: every card flips in, changed or not.
+  dealIn() {
+    this.cardEls.forEach((el, i) => el.animate(
+      [{ transform: 'rotateY(90deg) scale(0.9)' }, { transform: 'none' }],
+      { duration: 220, delay: i * 45, easing: 'ease-out', fill: 'backwards' },
+    ));
   }
 
   banner(text, cls) {
@@ -221,6 +232,7 @@ export class UI {
 
     const cardsOn = mine && m.phase === 'cards';
     this.put('end', cardsOn, v => { $('btn-end').disabled = !v; });
+    this.put('refresh', cardsOn && m.teams[BLUE].meat >= REFRESH_COST, v => { $('btn-refresh').disabled = !v; });
     // While the player aims, the panel slides away to leave the strip under the castle
     // free for dragging.
     this.put('away', live && mine && m.phase === 'aim', v => { $('panel').classList.toggle('away', v); });

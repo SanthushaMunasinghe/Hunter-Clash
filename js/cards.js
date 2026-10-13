@@ -12,6 +12,7 @@ export function newTeam() {
   return {
     meat: START_MEAT, hand: new Array(HAND_SIZE).fill(null),
     small: new Array(HAND_SIZE).fill(false), // which hand slots hold a small troop card
+    smallDrawn: 0,                           // small cards drawn so far this turn
     arrows: 1, damage: ARROW.damage, bounces: 0, bought: { arrow: 0, damage: 0, bounce: 0 },
     hunts: 0, hunted: 0, // volleys loosed and meat they brought in, over the whole match
   };
@@ -40,8 +41,10 @@ function draw(pool, weights) {
   return pool.splice(k, 1)[0];
 }
 
-// Deals a fresh hand: HAND_SIZE different cards drawn by weight. A hand always has
-// warriors or archers in it, so there is never a turn with no basic troops to send.
+// Deals a fresh hand in place of whatever the team holds: HAND_SIZE different cards
+// drawn by weight. A fresh hand always has warriors or archers in it. This is the
+// opening deal, and what paying to refresh the hand buys; otherwise a hand is kept from
+// turn to turn and only changes a card at a time, as cards are played.
 export function dealHand(m, team) {
   const weights = dealWeights(m, team);
   let hand;
@@ -56,9 +59,8 @@ export function dealHand(m, team) {
   T.hand.forEach((id, idx) => { T.small[idx] = dealtSmall(m, team, idx); });
 }
 
-// Whether the troop card dealt into hand[idx] at the start of a turn comes as a small
-// one: the opening size at the opening price, for a side whose troop cards have grown.
-// See DEAL.small.
+// Whether the troop card just drawn into hand[idx] comes as a small one: the opening
+// size at the opening price, for a side whose troop cards have grown. See DEAL.small.
 function dealtSmall(m, team, idx) {
   const T = m.teams[team];
   if (CARDS[T.hand[idx]].zone !== 'lane' || muster(T) === MUSTER[0]) return false;
@@ -69,7 +71,9 @@ function dealtSmall(m, team, idx) {
   }));
   const odds = gap <= DEAL.small.within ? DEAL.small.pressed : DEAL.small.calm;
   const held = T.small.filter((small, k) => small && k !== idx).length;
-  return held < odds.most && Math.random() < odds.chance;
+  if (held >= odds.most || T.smallDrawn >= odds.most || Math.random() >= odds.chance) return false;
+  T.smallDrawn++;
+  return true;
 }
 
 // Puts a new card in hand[idx] in place of the one just played, drawn by weight from the
@@ -79,7 +83,7 @@ function refill(m, team, idx) {
   const hand = m.teams[team].hand, weights = dealWeights(m, team);
   const pool = CARD_ORDER.filter(id => weights[id] > 0 && !hand.includes(id));
   hand[idx] = draw(pool, weights) ?? (weights[hand[idx]] > 0 ? hand[idx] : null);
-  m.teams[team].small[idx] = false; // only a turn's opening hand has small cards in it
+  m.teams[team].small[idx] = hand[idx] ? dealtSmall(m, team, idx) : false;
 }
 
 // How far a team's troop cards have grown: the last line of MUSTER its volley has reached.

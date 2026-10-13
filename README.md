@@ -6,13 +6,13 @@ Each turn runs in four steps:
 
 1. **Hunt** – the card panel slides away. Press in the strip below your castle and slide left or right: the shot starts out aimed straight up the field and swings the opposite way to your finger. Let go to shoot. Every arrow you own is loosed at once, side by side along that line and fanning out very slightly. An arrow bounces off the field edge (up to 3 times) and stops in the first animal it hits, unless it kills it with damage to spare or you have bought it a bounce (see below).
 2. **Castle defends** – your castle fires 5 arrows down a road at the enemy's front row, but only once that row has come right up to your home rows. Each of your guard towers shoots one arrow at a front row within 4 slots. A castle arrow kills a warrior or an archer outright.
-3. **Spend** – each turn deals you four different cards out of six. Playing one draws a new card into its place straight away, so you can keep spending while the meat lasts. Drag one onto the board:
+3. **Spend** – you hold four different cards out of seven, dealt at the start of the match and kept from turn to turn. Playing one draws a new card into its place straight away, so you can keep spending while the meat lasts. The round-arrow button next to END TURN throws the whole hand in for a fresh one for 10 meat. Drag a card onto the board:
    - **Warriors**, **Archers**, **Giant** – onto the left or right side of the board, to send them down that road.
    - **Tower** – onto a checkpoint you hold.
    - **+1 Arrow**, **+Damage**, **+1 Bounce** – onto your own castle.
 4. **End turn** – nothing on the roads fights until you press END TURN. Then, on each road, your front row strikes whatever it can reach, the rows of archers behind it shoot if they are in range, and the column marches.
 
-The deal is random but weighted. Warriors, Archers and the three upgrades all turn up about equally often, however many upgrades you have bought. Giants become common from about turn 6. The Tower is a little rarer and is only dealt once you hold two checkpoints on one road. +1 Arrow stops being dealt once you have three arrows. A hand always has Warriors or Archers in it. The odds are the `DEAL` table in `js/config.js`.
+Which card you draw is random but weighted. Warriors, Archers and the three upgrades all turn up about equally often, however many upgrades you have bought. Giants become common from about turn 6. The Tower is a little rarer and is only dealt once you hold two checkpoints on one road. +1 Arrow stops being dealt once you have three arrows. A fresh hand (the opening deal, or one you paid to refresh) always has Warriors or Archers in it; a hand you have been playing from may not, which is what the refresh is for. The odds are the `DEAL` table in `js/config.js`.
 
 ## Hunting
 
@@ -31,7 +31,7 @@ The number over an animal is its health and its meat in one. An arrow takes its 
 
 ## Troops
 
-A troop card sends single units: three warriors, three archers or one giant to start with. Troop cards grow with your hunting. Once the damage of your whole volley is double the opening volley (24) every troop card costs double and sends 5 warriors or archers, or 2 giants. At triple (36) it costs triple and sends 8, or 3 giants. The line on the card (`5 UNITS`) shows what it sends. Once your cards have grown, the hand dealt at the start of a turn still sometimes has a small troop card in it, at the opening size and price (3 units for 20), so you are not priced out of sending anything: about one hand in three has one. While the enemy's front row is within 6 slots of your home rows nearly every hand has one and most have two. Cards drawn during a turn are always full size. Both sides play by this; the table is `MUSTER` in `js/config.js`. They step out of the home platform by your gate and walk up to join your column on that road.
+A troop card sends single units: three warriors, three archers or one giant to start with. Troop cards grow with your hunting. Once the damage of your whole volley is double the opening volley (24) every troop card costs double and sends 5 warriors or archers, or 2 giants. At triple (36) it costs triple and sends 8, or 3 giants. The line on the card (`5 UNITS`) shows what it sends. Once your cards have grown, a troop card you draw is still sometimes a small one, at the opening size and price (3 units for 20), so you are not priced out of sending anything. You hold at most one and draw at most one a turn. While the enemy's front row is within 6 slots of your home rows they are far more likely and the limit is two.
 
 | | What it is for | Weakness |
 |---|---|---|

@@ -230,6 +230,10 @@ img { -webkit-user-drag: none; }
 .btn.primary { background: linear-gradient(#ffe56e, #ffc62e); }
 .btn.ghost { background: linear-gradient(#e2e4f2, #bfc2dc); }
 .btn.big { height: 54px; font-size: 24px; }
+/* Pay meat for a fresh hand. */
+.btn.refresh { display: flex; align-items: center; gap: 1px; padding: 0 9px 0 7px; }
+.btn.refresh svg { width: 19px; height: 19px; margin-right: 2px; }
+.btn.refresh img { width: 21px; height: 21px; }
 .btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
 .btn:disabled { opacity: 0.5; filter: grayscale(0.7); cursor: default; }
 

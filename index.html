@@ -63,6 +63,10 @@
       <div class="panel-top">
         <div class="meat" id="meat"><img class="meat-ic" alt=""><b id="meat-num">0</b></div>
         <div class="hint" id="hint"></div>
+        <button class="btn ghost refresh" id="btn-refresh" disabled aria-label="New cards">
+          <svg viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2.3-5.2" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M4 4v5h5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <img class="meat-ic" alt="meat"><b id="refresh-cost">10</b>
+        </button>
         <button class="btn primary" id="btn-end" disabled>END TURN</button>
       </div>
       <div class="cards" id="cards"></div>
@@ -97,7 +101,7 @@
         <ol>
           <li><b>Hunt.</b> Press in the strip below your castle and slide left or right to aim (the shot swings the opposite way), then let go. Every arrow you own is loosed at once, side by side down that line. An arrow bounces off the field edge up to 3 times and stops in the first animal it hits, unless it kills it with damage to spare (then it flies on through) or you have bought +1 Bounce.</li>
           <li><b>Castle defends.</b> After your hunt your castle fires 5 arrows at an enemy front row that has come right up to the line outside your gate. One arrow kills a warrior or an archer.</li>
-          <li><b>Spend.</b> Each turn deals you 4 different cards; a played card is replaced by a new one at once. Drag a troop card onto the left or right side of the board to send it down that road.</li>
+          <li><b>Spend.</b> You hold 4 different cards and keep them from turn to turn; a played card is replaced by a new one at once. The round-arrow button swaps the whole hand for a fresh one for 10 meat. Drag a troop card onto the left or right side of the board to send it down that road.</li>
           <li><b>End turn.</b> Nothing fights until you press END TURN. Then your front row strikes, the archers behind it shoot if they are in range, and your columns march up to one checkpoint further. A column that reaches the enemy castle strikes it straight away.</li>
         </ol>
         <ul>

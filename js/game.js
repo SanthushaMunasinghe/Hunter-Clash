@@ -1,9 +1,9 @@
-import { BLUE, RED, CASTLE, ARROW, CARDS, LEVELS, TURN_LIMIT } from './config.js';
+import { BLUE, RED, CASTLE, ARROW, CARDS, LEVELS, TURN_LIMIT, REFRESH_COST } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
 import { collectObstacles, stepArrow, previewPaths, volleyShots, volleyDamage, arrowOf, arrowHits } from './arrow.js';
 import { newTeam, dealHand, playCard, basePoint, muster, damageGain } from './cards.js';
-import { chooseAim, chooseCard } from './ai.js';
+import { chooseAim, chooseCard, wantsRefresh } from './ai.js';
 import { newLane, homeSlot, rowsOf, rowSpots, laneGuard, laneFight, checkpointsHeld } from './rules.js';
 import { dist, clamp, lerp, rand, easeOut } from './utils.js';
 
@@ -93,11 +93,13 @@ export class Game {
   async turn(m, team) {
     const mine = team === BLUE;
 
-    // Start of turn: animals killed a while ago return and the hand is dealt again.
+    // Start of turn: animals killed a while ago return. The hand is kept from the turn
+    // before; only the first turn has one to deal.
     m.tick++;
     const fresh = respawnAnimals(m);
     if (fresh.length) this.emit('toast', 'New prey: ' + fresh.map(k => k[0].toUpperCase() + k.slice(1)).join(' and '));
-    dealHand(m, team);
+    m.teams[team].smallDrawn = 0;
+    if (m.teams[team].hand.includes(null)) dealHand(m, team);
 
     // Hunt: one volley, every arrow the team owns loosed together down the same line.
     m.phase = 'aim';
@@ -171,6 +173,10 @@ export class Game {
     const lvl = LEVELS[m.levelIdx];
     await this.sleep(m, 0.4);
     if (Math.random() < lvl.skip) return;
+    if (wantsRefresh(m, RED) && this.refresh(m, RED)) {
+      this.emit('toast', 'Enemy refreshed its cards');
+      await this.sleep(m, 0.7);
+    }
     for (let i = 0; i < lvl.maxCards && !m.over; i++) {
       const act = chooseCard(m, RED, lvl);
       if (!act) break;
@@ -197,6 +203,23 @@ export class Game {
     const m = this.match;
     if (!m || m.phase !== 'cards' || m.turnTeam !== BLUE) return false;
     return this.play(m, BLUE, idx, target);
+  }
+
+  playerRefresh() {
+    const m = this.match;
+    if (!m || m.phase !== 'cards' || m.turnTeam !== BLUE) return false;
+    return this.refresh(m, BLUE);
+  }
+
+  // Pays to throw the whole hand in for a fresh one. Shared by the player and the AI.
+  refresh(m, team) {
+    const T = m.teams[team];
+    if (T.meat < REFRESH_COST) return false;
+    T.meat -= REFRESH_COST;
+    dealHand(m, team);
+    this.sfx.play('capture');
+    this.emit('refresh', team);
+    return true;
   }
 
   playerEndTurn() {
