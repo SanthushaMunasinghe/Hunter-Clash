@@ -78,9 +78,10 @@ export const UNITS = {
 // takes the lot. It pays well in one go but has to be led; slow prey is an easy target
 // that lasts several hits.
 // from: the turn it first appears. Richer prey arrives every 5 turns.
-// Every animal runs in a straight line until it meets the field edge, a castle or
-// another animal, and bounces off. band, as a fraction of the way from the middle of the
-// field to a base: quick prey never leaves its band, a strip across the middle; slow
+// Every animal runs in a straight line. Slow prey bounces off the field edge, a castle
+// or another animal. Quick prey only bounces off the edges of its own area, and waits
+// for an animal in its way to move on. band, as a fraction of the way from the middle of
+// the field to a base: quick prey never leaves its band, a strip across the middle; slow
 // prey only first appears in its band, and then has the run of the whole field.
 export const ANIMALS = {
   sheep: { meat: 48, r: 15, speed: 30, from: 1, band: [0.15, 0.86] },

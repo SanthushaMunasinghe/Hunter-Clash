@@ -152,11 +152,12 @@ export function animalVelocity(a) {
   return { x: Math.cos(a.heading) * a.speed, y: Math.sin(a.heading) * a.speed };
 }
 
-// Animals never stand still. Each runs along a straight line until it meets something:
-// the edge of the field, a castle or another animal turns it, like a ball off a cushion.
-// Slow prey has the run of the whole field. Quick prey keeps to the strip across the
-// middle (its band) and bounces off the limits of that as well. Left alone for long
-// enough, an animal picks a new line for itself.
+// Each animal runs along a straight line until it meets something. Slow prey has the run
+// of the whole field, and the field edge, a castle or another animal turns it, like a
+// ball off a cushion. Quick prey keeps to the strip across the middle (its band) and
+// only ever turns at the limits of that strip and the field edge: an animal in its way
+// does not turn it, it pulls up and waits for the way to clear, then runs on along the
+// same line. Left alone for long enough, an animal picks a new line for itself.
 export function updateAnimals(m, dt) {
   const b = m.board, list = m.animals;
 
@@ -170,8 +171,13 @@ export function updateAnimals(m, dt) {
     }
 
     const v = animalVelocity(a), vx = v.x + a.kx, vy = v.y + a.ky;
-    a.x += vx * dt;
-    a.y += vy * dt;
+    // Quick prey waits rather than run into a slower animal in front of it.
+    a.moving = !a.fast || !list.some(q => !q.fast
+      && dist(a.x + vx * dt, a.y + vy * dt, q.x, q.y) < a.r + q.r + 4 && (q.x - a.x) * vx + (q.y - a.y) * vy > 0);
+    if (a.moving) {
+      a.x += vx * dt;
+      a.y += vy * dt;
+    }
     const damp = Math.pow(0.01, dt);
     a.kx *= damp;
     a.ky *= damp;
@@ -192,17 +198,19 @@ export function updateAnimals(m, dt) {
     }
   }
 
-  // Animals that run into each other bounce apart...
+  // Slow animals that run into each other bounce apart. One that walks into quick prey
+  // does all the giving way itself, and two quick animals simply cross.
   for (let i = 0; i < list.length; i++) {
     for (let j = i + 1; j < list.length; j++) {
       const p = list[i], q = list[j];
+      if (p.fast && q.fast) continue;
       const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy), min = p.r + q.r + 4;
       if (d >= min || d < 0.01) continue;
-      const push = (min - d) / 2, ux = dx / d, uy = dy / d;
-      p.x -= ux * push; p.y -= uy * push;
-      q.x += ux * push; q.y += uy * push;
-      ricochet(p, -ux, -uy, p.fast ? 0 : 0.4);
-      ricochet(q, ux, uy, q.fast ? 0 : 0.4);
+      const ux = dx / d, uy = dy / d, pGives = p.fast ? 0 : q.fast ? 1 : 0.5, over = min - d;
+      p.x -= ux * over * pGives; p.y -= uy * over * pGives;
+      q.x += ux * over * (1 - pGives); q.y += uy * over * (1 - pGives);
+      if (!p.fast) ricochet(p, -ux, -uy, 0.4);
+      if (!q.fast) ricochet(q, ux, uy, 0.4);
     }
   }
 
