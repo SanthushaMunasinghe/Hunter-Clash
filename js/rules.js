@@ -119,21 +119,25 @@ export function towerSpots(m, team) {
   return out;
 }
 
-// The nearest enemy thing ahead of `slot`, as { type, dist, ref }: the enemy's front row,
-// a guard tower, or the castle, which counts as standing on the last of the enemy's home
-// rows. A row shields whatever it is standing on.
+// The nearest enemy thing ahead of `slot`, as { type, dist, ref }: the enemy's front row
+// or a guard tower. The castle itself can only be struck once the road to it is clear,
+// with no enemy troops left on it and no guard tower standing in the way; it counts as
+// standing on the last of the enemy's home rows. Anything inside those rows is fought
+// from the line outside them, so it is measured to that last row as well. A row shields
+// a tower it is standing on.
 function aheadOf(lane, team, slot) {
-  const dir = dirOf(team), foe = lane.cols[1 - team];
-  let best = { type: 'castle', dist: dir * (gateSlot(1 - team) - slot) };
+  const dir = dirOf(team), foe = lane.cols[1 - team], gate = gateSlot(1 - team);
+  const gap = at => dir * ((dir * (at - gate) > 0 ? gate : at) - slot);
+  let best = null;
   for (const t of lane.towers) {
-    const d = dir * (t.slot - slot);
-    if (t.team !== team && d > 0 && d < best.dist) best = { type: 'tower', dist: d, ref: t };
+    const d = gap(t.slot);
+    if (t.team !== team && d > 0 && (!best || d < best.dist)) best = { type: 'tower', dist: d, ref: t };
   }
   if (foe.units.length) {
-    const d = dir * (foe.front - slot);
-    if (d > 0 && d <= best.dist) best = { type: 'row', dist: d };
+    const d = gap(foe.front);
+    if (d > 0 && (!best || d <= best.dist)) best = { type: 'row', dist: d };
   }
-  return best;
+  return best || { type: 'castle', dist: dir * (gate - slot) };
 }
 
 // How far a column fronted on `front` can walk, up to `max` slots. It cannot pass the

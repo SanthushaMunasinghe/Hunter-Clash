@@ -46,7 +46,7 @@ A troop card sends single units: three warriors, three archers or one giant to s
 
 **Fighting** happens only when a side ends its turn:
 
-1. The front row strikes the nearest enemy thing in its reach: the enemy's front row, a guard tower, or the castle behind the enemy gate.
+1. The front row strikes the nearest enemy thing in its reach: the enemy's front row or a guard tower, or the castle once nothing of the enemy's is left standing in front of it.
 2. Each row of archers behind it that is in range shoots as well.
 3. The column marches up to 5 slots, the distance from one checkpoint to the next, halting as soon as its front row has something to hit.
 4. If that march brings it up to the enemy castle, it strikes the castle there and then, with every unit in reach that has not already struck this turn. Arriving in front of enemy troops earns no such blow.
@@ -59,7 +59,7 @@ Each road is a row of 25 slots with 5 checkpoints, 4 open slots between neighbou
 
 Checkpoints belong to whoever's front line has reached them. Lose the units holding the line and the checkpoints go with them.
 
-A castle has 100 health. Attackers halt at the line outside its home rows and besiege it from there: the castle counts as standing on the last home row, so warriors at the line strike it and archers count their range to that row, not to the walls. The castle only shoots back at a front row that has reached the line, and then its 5 arrows will empty a front row of warriors, so a siege needs depth: fresh rows to step up, a giant in front to soak up arrows, archers shooting from behind. Defenders standing on the last home row shield the castle. Archers at the head of a column stop 4 slots short of that row and shoot from there, out of the castle's reach, so they have to be driven off with troops. An arrow from a hunt that reaches the enemy castle only chips 1 off it.
+A castle has 100 health. Attackers halt at the line outside its home rows and besiege it from there: the castle counts as standing on the last home row, so warriors at the line strike it and archers count their range to that row, not to the walls. The castle only shoots back at a front row that has reached the line, and then its 5 arrows will empty a front row of warriors, so a siege needs depth: fresh rows to step up, a giant in front to soak up arrows, archers shooting from behind. The castle can only be struck once the road to it is clear: any troops the defender still has on that road, and any guard tower in the way (one on the nearest checkpoint included), have to be destroyed first. Archers at the head of a column stop 4 slots short of that row and shoot from there, out of the castle's reach, so they have to be driven off with troops. An arrow from a hunt that reaches the enemy castle only chips 1 off it.
 
 A castle that falls loses the match on the spot. Otherwise matches are capped at 25 turns, and if both castles are still standing the one with more health left wins. Level health goes to the side holding more checkpoints, then to more meat.
 
