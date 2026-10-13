@@ -1,7 +1,7 @@
 import { BLUE, RED, CASTLE, ARROW, CARDS, LEVELS, TURN_LIMIT } from './config.js';
 import { makeBoard } from './board.js';
 import { initAnimals, updateAnimals, respawnAnimals, queueRespawn } from './animals.js';
-import { collectObstacles, stepArrow, previewPaths, volleyShots, volleyDamage, pierce } from './arrow.js';
+import { collectObstacles, stepArrow, previewPaths, volleyShots, volleyDamage, arrowOf, arrowHits } from './arrow.js';
 import { newTeam, dealHand, playCard, basePoint, muster, damageGain } from './cards.js';
 import { chooseAim, chooseCard } from './ai.js';
 import { newLane, homeSlot, rowsOf, rowSpots, laneGuard, laneFight, checkpointsHeld } from './rules.js';
@@ -178,8 +178,9 @@ export class Game {
       if (!this.play(m, RED, act.idx, act.target)) break;
       // An upgrade is spelt out, and left up long enough to read.
       const upgrade = CARDS[id].zone === 'base', now = muster(T);
-      this.emit('toast', (upgrade ? `Enemy ${CARDS[id].name}: its hunt now does ${volleyDamage(T)} DMG`
-        : `Enemy played ${CARDS[id].name}`) + (now !== was ? `. Its troop cards now send ${now.units}` : ''));
+      this.emit('toast', (id === 'bounce' ? `Enemy +1 Bounce: its arrows now glance off ${T.bounces} animal${T.bounces > 1 ? 's' : ''}`
+        : upgrade ? `Enemy ${CARDS[id].name}: its hunt now does ${volleyDamage(T)} DMG`
+          : `Enemy played ${CARDS[id].name}`) + (now !== was ? `. Its troop cards now send ${now.units}` : ''));
       await this.sleep(m, upgrade ? 1.2 : 0.55);
     }
   }
@@ -217,7 +218,8 @@ export class Game {
     if (ent.upgrade) {
       p = basePoint(m, team);
       const T = m.teams[team];
-      this.fx.text(p.x, p.y - 30, `${id === 'arrow' ? '+1 ARROW' : '+' + gain} = ${volleyDamage(T)} DMG`, '#ffcf3f', false, 17);
+      const what = id === 'bounce' ? `+1 BOUNCE = ${T.bounces}` : `${id === 'arrow' ? '+1 ARROW' : '+' + gain} = ${volleyDamage(T)} DMG`;
+      this.fx.text(p.x, p.y - 30, what, '#ffcf3f', false, 17);
       this.sfx.play('capture');
       // Stronger hunting makes troop cards bigger and dearer; say so when it happens.
       const now = muster(T);
@@ -235,10 +237,7 @@ export class Game {
   // Resolves once the last arrow has landed.
   fire(m, team, angle) {
     for (const s of volleyShots(m, team, angle)) {
-      m.arrows.push({
-        team, x: s.x, y: s.y, dx: s.dx, dy: s.dy, power: s.power, extra: s.extra,
-        bouncesLeft: ARROW.bounces, done: false, life: 0, fade: 0, trail: [],
-      });
+      m.arrows.push({ ...arrowOf(m.teams[team], s), team, life: 0, fade: 0, trail: [] });
     }
     m.teams[team].hunts++;
     m.volley = { team };
@@ -278,16 +277,21 @@ export class Game {
   }
 
   // An arrow spends its power on the animals it meets. One that kills with power to spare
-  // flies on through with what is left; otherwise it stops there. It is also spent on
-  // the enemy castle, and bounces off everything else.
+  // flies on through with what is left; one that fails to kill glances off if its side
+  // has bought it a bounce for that; otherwise it stops there. It is also spent on the
+  // enemy castle, and bounces off everything else.
   arrowHit(m, ar, o) {
     if (o.kind === 'animal') {
       o.ref.kx += ar.dx * 70;
       o.ref.ky += ar.dy * 70;
-      const hit = pierce(ar, o.ref);
+      const hit = arrowHits(ar, o.ref);
       this.gotMeat(m, o.ref, hit.gain, ar.team);
       if (o.ref.left <= 0) o.dead = true;
-      return hit.pass ? 'pass' : 'stop';
+      if (hit.then === 'glance') {
+        this.sfx.play('bounce');
+        this.fx.ring(ar.x, ar.y, '#ffffff', 4, 20, 0.25);
+      }
+      return hit.then;
     }
     if (o.kind === 'castle') {
       this.hurtCastle(m, 1 - ar.team, ARROW.castleDamage);

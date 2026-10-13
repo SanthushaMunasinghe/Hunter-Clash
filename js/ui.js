@@ -167,6 +167,7 @@ export class UI {
     if (n) return `${n} UNIT${n > 1 ? 'S' : ''}`;
     if (id === 'damage') return `+${damageGain(T)} DAMAGE`;
     if (id === 'arrow') return `+${Math.floor(T.damage * ARROW.extra)} DAMAGE`;
+    if (id === 'bounce') return '+1 BOUNCE';
     return '';
   }
 

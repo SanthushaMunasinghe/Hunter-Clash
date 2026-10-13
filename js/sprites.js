@@ -916,6 +916,18 @@ export function cardIcon(id) {
   } else if (id === 'arrow') {
     drawArrow(g, 26, 52, -Math.PI / 4, BLUE, 1.6);
     drawArrow(g, 46, 40, -Math.PI / 4, BLUE, 1.6);
+  } else if (id === 'bounce') {
+    // An arrow glancing off its mark: the dotted line in, the knock, the arrow flying on.
+    for (let k = 0; k < 4; k++) {
+      circle(g, 12 + k * 7.5, 68 - k * 10.5, 3.2);
+      g.fillStyle = '#ffffff';
+      g.fill();
+      g.strokeStyle = INK;
+      g.lineWidth = 1.4;
+      g.stroke();
+    }
+    burst(g, 40, 27, 13);
+    drawArrow(g, 57, 50, 0.95, BLUE, 1.5);
   } else {
     burst(g, 40, 42, 30);
     drawArrow(g, 40, 44, -Math.PI / 4, BLUE, 1.2);

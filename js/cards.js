@@ -6,12 +6,13 @@ import { volleyDamage } from './arrow.js';
 const SNAP = 64;       // how close a tower must be dropped to a checkpoint to snap onto it
 const BASE_SNAP = 95;  // how close an upgrade must be dropped to your own castle
 
-// arrows: how many are loosed each hunt. damage: what each does to an animal.
+// arrows: how many are loosed each hunt. damage: what the full one does to an animal.
+// bounces: how many animals each arrow can glance off without killing.
 export function newTeam() {
   return {
     meat: START_MEAT, hand: new Array(HAND_SIZE).fill(null),
     small: new Array(HAND_SIZE).fill(false), // which hand slots hold a small troop card
-    arrows: 1, damage: ARROW.damage, bought: { arrow: 0, damage: 0 },
+    arrows: 1, damage: ARROW.damage, bounces: 0, bought: { arrow: 0, damage: 0, bounce: 0 },
     hunts: 0, hunted: 0, // volleys loosed and meat they brought in, over the whole match
   };
 }
@@ -26,6 +27,7 @@ export function dealWeights(m, team) {
     archer: DEAL.archer,
     arrow: T.arrows < UPGRADE.maxArrows ? DEAL.arrow : 0,
     damage: DEAL.damage,
+    bounce: DEAL.bounce,
     giant: lerp(DEAL.giant[0], DEAL.giant[1], under),
     tower: m.lanes.some(lane => checkpointsHeld([lane], team) >= DEAL.towerNeeds) ? DEAL.tower : 0,
   };
@@ -95,12 +97,13 @@ export function cardUnits(T, id, idx) {
   return CARDS[id].zone !== 'lane' ? 0 : id === 'giant' ? sizeOf(T, idx).giants : sizeOf(T, idx).units;
 }
 
-// Troop cards cost more as they grow to send more units, and +Damage doubles in price
-// each time it is bought.
+// Troop cards cost more as they grow to send more units, and some upgrades get dearer
+// each time they are bought: +Damage doubles, +1 Bounce goes up a step.
 export function cardCost(T, id, idx) {
   const card = CARDS[id];
   if (card.zone === 'lane') return card.cost * sizeOf(T, idx).price;
-  return card.cost * Math.pow(card.factor || 1, T.bought[id] || 0);
+  const bought = T.bought[id] || 0;
+  return card.cost * Math.pow(card.factor || 1, bought) + (card.step || 0) * bought;
 }
 
 // The hunting damage the team's next +Damage card adds: one step more each time.
@@ -185,6 +188,7 @@ export function playCard(m, team, idx, target) {
     m.lanes[target.lane].towers.push(ent);
   } else {
     if (id === 'arrow') T.arrows++;
+    else if (id === 'bounce') T.bounces++;
     else T.damage += damageGain(T);
     T.bought[id]++;
     ent = { upgrade: id };

@@ -407,8 +407,9 @@ export class Renderer {
 
   // Dotted preview, one line per arrow of the volley: launch -> first contact, then a
   // short fading stub of the bounce. Where an arrow would kill an animal and fly on
-  // through it, a fainter line carries on to whatever it meets next. Animals in the line
-  // of fire light up.
+  // through it, a fainter line carries on to whatever it meets next; where it would
+  // glance off one it cannot kill, the line turns there and runs on to its next mark.
+  // Animals in the line of fire light up.
   drawAimPath(ctx, m, paths, angle, pull, team, t) {
     const L = m.board.castles[team].launch, col = team === BLUE ? '255,255,255' : '255,190,190';
 
@@ -441,6 +442,7 @@ export class Renderer {
       for (let i = 0; i + 1 < pts.length; i++) {
         const p = pts[i], q = pts[i + 1], prey = q.kind === 'animal';
         if (p.pass) dots(p, q, Infinity, 0.4, 0.4);
+        else if (p.glance) dots(p, q, Infinity, 0.8, 0.8);
         else if (!i) dots(p, q, Infinity, 0.95, 0.95);
         else dots(p, q, prey ? Infinity : 150, 0.9, prey ? 0.9 : 0.05);
       }
@@ -586,7 +588,8 @@ export class Renderer {
     if (!tg || !d.onBoard) return;
     const b = m.board, zone = CARDS[d.id].zone;
     if (zone === 'base') {
-      if (tg.valid) S.label(ctx, d.id === 'arrow' ? '+1 ARROW' : `+${damageGain(m.teams[BLUE])} DAMAGE`, tg.x, tg.y - 74, 18, '#8dff7a');
+      const what = d.id === 'arrow' ? '+1 ARROW' : d.id === 'bounce' ? '+1 BOUNCE' : `+${damageGain(m.teams[BLUE])} DAMAGE`;
+      if (tg.valid) S.label(ctx, what, tg.x, tg.y - 74, 18, '#8dff7a');
     } else if (tg.valid) {
       ctx.globalAlpha = 0.85;
       if (zone === 'lane') {

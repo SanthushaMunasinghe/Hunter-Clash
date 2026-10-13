@@ -38,17 +38,20 @@ export const CASTLE = {
   guardSlots: 1, arrows: 5, arrow: { melee: 12, archer: 12, giant: 12 },
 };
 
-// An arrow bounces off the field edge up to `bounces` times and stops in the first animal
-// it hits, unless it kills it with damage to spare: then it flies on through with what
-// is left. damage is the starting hunting damage: the meat the first arrow can take in
-// all. Every additional arrow a side buys is a smaller one that does `extra` of that.
+// An arrow bounces off the field edge up to `bounces` times. It stops in the first animal
+// it hits, with two exceptions. If it kills the animal with damage to spare it flies on
+// through with what is left. And a side that has bought +1 Bounce cards has arrows that
+// glance off an animal they fail to kill, that many times each, and fly on at full
+// strength; those bounces are counted apart from the ones off the field edge.
+// damage is the starting hunting damage: the meat the first arrow takes at a hit.
+// Every additional arrow a side buys is a smaller one that does `extra` of that.
 // castleDamage is the token chip an arrow takes off the enemy castle if it gets that
 // far; it never grows.
 // A volley leaves the bow all at once: the full arrow down the aim line and the smaller
-// ones to either side of it, `rank` px apart and each turned `fan` radians further out. Past `abreast` arrows the
-// rank closes up instead of growing any wider.
+// ones to either side of it, `rank` px apart and each turned `fan` radians further out.
+// Past `abreast` arrows the rank closes up instead of growing any wider.
 export const ARROW = {
-  speed: 800, radius: 6, step: 3, bounces: 5, damage: 12, extra: 0.5, castleDamage: 1,
+  speed: 800, radius: 6, step: 3, bounces: 3, damage: 12, extra: 0.5, castleDamage: 1,
   rank: 12, fan: 0.01, abreast: 5,
 };
 
@@ -58,13 +61,14 @@ export const ARROW = {
 // Three warriors fell a warrior in two blows between them. An archer dies to any blow
 // but shoots from the rows behind: with a range of 4 it still reaches what the front
 // row is fighting from three rows back. A giant has the health of three warriors in two
-// spaces, leads the front row so it takes the first blows, sweeps two enemies with
-// every swing and breaks a guard tower in 2 blows (a full row of warriors needs 4).
+// spaces and leads the front row, so it takes the first blows. Its swing sweeps the
+// whole of the enemy's front row, which fells every warrior and archer in it; it hits a
+// castle hard and breaks a guard tower in 2 blows (a full row of warriors needs 4).
 // A guard tower shoots one arrow a turn at the enemy's front row, as far as an archer.
 export const UNITS = {
   melee: { size: 1, hp: 12, range: 1, dmg: { melee: 8, archer: 8, giant: 8, tower: 3, castle: 8 } },
   archer: { size: 1, hp: 6, range: 4, dmg: { melee: 4, archer: 6, giant: 4, tower: 3, castle: 3 } },
-  giant: { size: 2, hp: 36, range: 1, sweep: 2, dmg: { melee: 24, archer: 24, giant: 24, tower: 30, castle: 25 } },
+  giant: { size: 2, hp: 36, range: 1, sweep: ROW, dmg: { melee: 24, archer: 24, giant: 24, tower: 30, castle: 40 } },
   tower: { hp: 60, range: 4, dmg: { melee: 4, archer: 4, giant: 4 } },
 };
 
@@ -74,16 +78,18 @@ export const UNITS = {
 // takes the lot. It pays well in one go but has to be led; slow prey is an easy target
 // that lasts several hits.
 // from: the turn it first appears. Richer prey arrives every 5 turns.
-// band: where it roams, as a fraction of the way from the middle of the field to a base.
-// Cheap prey grazes near the castles; the quick kinds keep to the middle, far from both.
+// Every animal runs in a straight line until it meets the field edge, a castle or
+// another animal, and bounces off. band, as a fraction of the way from the middle of the
+// field to a base: quick prey never leaves its band, a strip across the middle; slow
+// prey only first appears in its band, and then has the run of the whole field.
 export const ANIMALS = {
-  sheep: { meat: 48, r: 15, speed: 30, from: 1, band: [0.5, 0.86] },
+  sheep: { meat: 48, r: 15, speed: 30, from: 1, band: [0.15, 0.86] },
   rabbit: { meat: 36, r: 12, speed: 99, fast: true, from: 1, band: [0, 0.26] },
-  cow: { meat: 70, r: 17, speed: 28, from: 6, band: [0.42, 0.8] },
-  bull: { meat: 96, r: 19, speed: 26, from: 11, band: [0.32, 0.72] },
+  cow: { meat: 70, r: 17, speed: 28, from: 6, band: [0.15, 0.86] },
+  bull: { meat: 96, r: 19, speed: 26, from: 11, band: [0.15, 0.86] },
   deer: { meat: 56, r: 14, speed: 120, fast: true, from: 11, band: [0, 0.26] },
-  bear: { meat: 144, r: 23, speed: 24, from: 16, band: [0.22, 0.62] },
-  dino: { meat: 220, r: 27, speed: 20, from: 21, band: [0.08, 0.5] },
+  bear: { meat: 144, r: 23, speed: 24, from: 16, band: [0.15, 0.86] },
+  dino: { meat: 220, r: 27, speed: 20, from: 21, band: [0.15, 0.86] },
   stag: { meat: 84, r: 15, speed: 138, fast: true, from: 21, band: [0, 0.26] },
 };
 // Opening herd, as point-mirrored pairs.
@@ -105,23 +111,25 @@ export const MUSTER = [
   { power: 3, price: 3, units: 8, giants: 3 },
 ];
 
-// zone: where a card is dropped. factor: what a card's price is multiplied by each time it
-// is bought. Only +Damage has one: it doubles in price, and adds more damage each time.
+// zone: where a card is dropped. A card's price can go up each time it is bought: `factor`
+// multiplies it and `step` adds to it. +Damage doubles, and adds more damage each time;
+// +1 Bounce goes up by 10.
 export const CARDS = {
   melee: { name: 'Warriors', cost: 20, zone: 'lane' },
   archer: { name: 'Archers', cost: 20, zone: 'lane' },
-  giant: { name: 'Giant', cost: 28, zone: 'lane' },
+  giant: { name: 'Giant', cost: 34, zone: 'lane' },
   tower: { name: 'Tower', cost: 30, zone: 'checkpoint' },
   arrow: { name: '+1 Arrow', cost: 40, zone: 'base' },
   damage: { name: '+Damage', cost: 10, factor: 2, zone: 'base' },
+  bounce: { name: '+1 Bounce', cost: 30, step: 10, zone: 'base' },
 };
 // All the cards, in the order they are laid out when dealt.
-export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage'];
+export const CARD_ORDER = ['melee', 'archer', 'giant', 'tower', 'arrow', 'damage', 'bounce'];
 // Each turn deals HAND_SIZE different cards at random. Playing one draws a new card into
 // its place straight away, so the hand is always full.
 export const HAND_SIZE = 4;
-// How likely each card is to be dealt. The two upgrades turn up about as often as
-// warriors and archers all match long, however many have been bought. +1 Arrow drops out
+// How likely each card is to be dealt. The upgrades turn up about as often as warriors
+// and archers all match long, however many have been bought. +1 Arrow drops out
 // of the deal for good at UPGRADE.maxArrows arrows. The tower is a little rarer, and is
 // only dealt to a side holding `towerNeeds` checkpoints on one road.
 export const DEAL = {
@@ -129,6 +137,7 @@ export const DEAL = {
   archer: 8,
   arrow: 9,
   damage: 9,
+  bounce: 8,
   giant: [1, 6],            // on the first turns -> once the match is under way
   ramp: [2, 6],             // giant odds grow between these turns
   tower: 5,

@@ -264,7 +264,7 @@ img { -webkit-user-drag: none; }
 }
 .card.giant .name { background: #2f6fd0; }
 .card.tower .name { background: #a45bd6; }
-.card.arrow .name, .card.damage .name { background: #2f9c57; }
+.card.arrow .name, .card.damage .name, .card.bounce .name { background: #2f9c57; }
 .card .art { height: 46px; max-width: 100%; object-fit: contain; margin-top: 2px; pointer-events: none; }
 .card .note {
   height: 15px;

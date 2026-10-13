@@ -4,15 +4,15 @@ A turn-based mobile (portrait) hunt-and-push strategy game for the web. Blue (yo
 
 Each turn runs in four steps:
 
-1. **Hunt** – the card panel slides away. Press in the strip below your castle and slide left or right: the shot starts out aimed straight up the field and swings the opposite way to your finger. Let go to shoot. Every arrow you own is loosed at once, side by side along that line and fanning out very slightly. An arrow bounces off the field edge (up to 5 times) and stops in the first animal it hits, unless it kills it with damage to spare.
+1. **Hunt** – the card panel slides away. Press in the strip below your castle and slide left or right: the shot starts out aimed straight up the field and swings the opposite way to your finger. Let go to shoot. Every arrow you own is loosed at once, side by side along that line and fanning out very slightly. An arrow bounces off the field edge (up to 3 times) and stops in the first animal it hits, unless it kills it with damage to spare or you have bought it a bounce (see below).
 2. **Castle defends** – your castle fires 5 arrows down a road at the enemy's front row, but only once that row has come right up to your home rows. Each of your guard towers shoots one arrow at a front row within 4 slots. A castle arrow kills a warrior or an archer outright.
 3. **Spend** – each turn deals you four different cards out of six. Playing one draws a new card into its place straight away, so you can keep spending while the meat lasts. Drag one onto the board:
    - **Warriors**, **Archers**, **Giant** – onto the left or right side of the board, to send them down that road.
    - **Tower** – onto a checkpoint you hold.
-   - **+1 Arrow**, **+Damage** – onto your own castle.
+   - **+1 Arrow**, **+Damage**, **+1 Bounce** – onto your own castle.
 4. **End turn** – nothing on the roads fights until you press END TURN. Then, on each road, your front row strikes whatever it can reach, the rows of archers behind it shoot if they are in range, and the column marches.
 
-The deal is random but weighted. Warriors, Archers and the two upgrades all turn up about equally often, however many upgrades you have bought. Giants become common from about turn 6. The Tower is a little rarer and is only dealt once you hold two checkpoints on one road. +1 Arrow stops being dealt once you have three arrows. A hand always has Warriors or Archers in it. The odds are the `DEAL` table in `js/config.js`.
+The deal is random but weighted. Warriors, Archers and the three upgrades all turn up about equally often, however many upgrades you have bought. Giants become common from about turn 6. The Tower is a little rarer and is only dealt once you hold two checkpoints on one road. +1 Arrow stops being dealt once you have three arrows. A hand always has Warriors or Archers in it. The odds are the `DEAL` table in `js/config.js`.
 
 ## Hunting
 
@@ -20,12 +20,14 @@ The herd is small, about six animals. A kill comes back two rounds later.
 
 The number over an animal is its health and its meat in one. An arrow takes its damage off that number and you bank exactly as much (or whatever the animal has left). An arrow that kills an animal with damage to spare flies straight on through it with what is left, and can go through several; the aim preview shows that stretch as a fainter line. The damage of your whole volley, every arrow added up, is always shown at the foot of your castle (`24 DMG`), and turns green with the new figure while you hold an upgrade card over the castle.
 
-- **Quick prey** (rabbit, deer, stag; gold number under a red target mark) is the exception: any hit takes all of it, and it carries a big bounty for its size (36, 56 and 84). It keeps to the middle of the field, far from both castles, moves fast, and the aim preview does not lead it for you.
-- **Slow prey** (sheep, cow, bull, bear, dino) lasts several hits. The cheapest kinds graze nearest the castles; richer ones hold more meat and roam further out.
+- **Quick prey** (rabbit, deer, stag; gold number under a red target mark) is the exception: any hit takes all of it, and it carries a big bounty for its size (36, 56 and 84). It keeps to a strip across the middle of the field, far from both castles, and moves fast, so it has to be led: the aim preview does not do that for you. It runs straight and ricochets true off the field edge, the limits of its strip and other animals, so its next few seconds can be read.
+- **Slow prey** (sheep, cow, bull, bear, dino) lasts several hits and has the run of the whole field. Each animal walks a straight line until it meets the edge, a castle or another animal, then turns away.
 - Nothing ever stands still.
 - Richer prey arrives every 5 turns: cow on 6, bull and deer on 11, bear on 16, dino and stag on 21.
 
 **+1 Arrow** adds a smaller arrow to every volley, flying beside the full one and doing half its damage (three arrows is the most you can have). It always costs 40. **+Damage** adds to the full arrow (you start on 12), and half as much to each smaller one. Its price doubles each time you buy it and it gives 2 more than the time before: +2 for 10, +4 for 20, +6 for 40, +8 for 80, and so on. Each upgrade card says what it adds. Meat spent here is meat not spent on troops, so a greedy hunter can be rushed.
+
+**+1 Bounce** lets every arrow glance off one more animal that it hits but does not kill, instead of stopping in it. It flies on at full strength, so each bounce is another full hit if it finds something. These bounces are counted apart from the three off the field edge, and the aim preview shows the line turning at the animal. It costs 30, and 10 more each time.
 
 ## Troops
 
@@ -35,7 +37,7 @@ A troop card sends single units: three warriors, three archers or one giant to s
 |---|---|---|
 | **Warriors** | The all-round fighter: 12 health, and two blows fell another warrior | None in particular |
 | **Archers** | Hit 4 slots ahead, so they still reach the fight from three rows behind the front | Die to any blow |
-| **Giant** | Leads the front row and takes the first blows: 36 health in two spaces. Every swing lands on two enemies at once, and it breaks a guard tower in 2 blows | Dear |
+| **Giant** | Leads the front row and takes the first blows: 36 health in two spaces. Its swing sweeps the enemy's whole front row, felling every warrior and archer in it; it hits a castle for 40 and breaks a guard tower in 2 blows | Dear at 34 |
 | **Tower** | Blocks the road and shoots one arrow a turn at the enemy's front row | Giants |
 
 **Rows.** A column stands in rows, one slot apart. A row is 5 spaces of one class: warriors (1 space) and giants (2 spaces, always in the middle) share rows, archers keep to rows of their own. Melee always hold the front, and the front row is led by one giant if you have one, with warriors filling the rest of it: five warriors make room for a giant by two of them dropping back a row. More giants only come up to the front when there are not the warriors to fill it, so with no warriors the giants hold the front themselves. Everyone else falls in behind in the order you sent them, each into the first row of its class that has room, or into a new row at the back. The formation is redone whenever units are added, fall or march, and the column closes up on its front line.

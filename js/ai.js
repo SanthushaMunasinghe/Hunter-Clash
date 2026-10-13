@@ -138,7 +138,9 @@ export function chooseCard(m, team, lvl) {
   const volley = volleyDamage(T), perHunt = T.hunts ? T.hunted / T.hunts : volley * 0.9;
   const upgradeScore = id => {
     const better = volleyDamage({ arrows: T.arrows + (id === 'arrow'), damage: T.damage + (id === 'damage' ? damageGain(T) : 0) });
-    const gain = perHunt * (better - volley) / volley;
+    // A bounce gives an arrow a second full hit when it finds another animal to land it
+    // on, which gets less likely with every bounce it already has.
+    const gain = id === 'bounce' ? perHunt * 0.45 * Math.pow(0.6, T.bounces) : perHunt * (better - volley) / volley;
     return 28 + 12 * (gain * horizon) / cardCost(T, id) + (lvl.eco ?? 0) - danger * 50 + rand(6);
   };
 
